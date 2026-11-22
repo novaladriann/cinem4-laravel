@@ -52,7 +52,7 @@ class SeatReservationService
                     ]);
                 }
 
-                if (count($seats) !== count(array_unique($seats))
+                if ($seats === [] || count($seats) !== count(array_unique($seats))
                     || min($seats) < 1 || max($seats) > $schedule->seat_capacity) {
                     throw ValidationException::withMessages([
                         'seats' => 'Nomor kursi tidak valid untuk studio ini.',
@@ -162,7 +162,7 @@ class SeatReservationService
 
             DB::table('seat_locks')->where('id_booking', $booking->id_booking)->delete();
             $booking->update([
-                'status' => $booking->expires_at->isPast() ? 'expired' : 'cancelled',
+                'status' => CarbonImmutable::parse((string) $booking->expires_at)->isPast() ? 'expired' : 'cancelled',
             ]);
         });
     }
