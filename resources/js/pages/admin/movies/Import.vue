@@ -30,23 +30,31 @@ function search(): void {
     }
 
     busy.value = true;
-    router.get('/admin/movies/import', { q: term.value.trim() }, {
-        preserveState: true,
-        replace: true,
-        onFinish: () => {
-            busy.value = false;
+    router.get(
+        '/admin/movies/import',
+        { q: term.value.trim() },
+        {
+            preserveState: true,
+            replace: true,
+            onFinish: () => {
+                busy.value = false;
+            },
         },
-    });
+    );
 }
 
 function importMovie(id: number): void {
     importingId.value = id;
-    router.post(`/admin/movies/import/${id}`, {}, {
-        preserveScroll: true,
-        onFinish: () => {
-            importingId.value = null;
+    router.post(
+        `/admin/movies/import/${id}`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                importingId.value = null;
+            },
         },
-    });
+    );
 }
 </script>
 
@@ -67,11 +75,14 @@ function importMovie(id: number): void {
                     <Film class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    <h1
+                        class="text-2xl font-semibold tracking-tight sm:text-3xl"
+                    >
                         Impor film dari TMDB
                     </h1>
                     <p class="mt-1 text-sm text-muted-foreground">
-                        Cari film, tinjau hasil, lalu masukkan ke katalog CINEM4.
+                        Cari film, tinjau hasil, lalu masukkan ke katalog
+                        CINEM4.
                     </p>
                 </div>
             </div>
@@ -83,7 +94,9 @@ function importMovie(id: number): void {
             @submit.prevent="search"
         >
             <div class="flex-1 space-y-2">
-                <label for="film-query" class="text-sm font-medium">Judul film</label>
+                <label for="film-query" class="text-sm font-medium"
+                    >Judul film</label
+                >
                 <input
                     id="film-query"
                     v-model="term"
@@ -99,7 +112,9 @@ function importMovie(id: number): void {
             </div>
             <button
                 type="submit"
-                :disabled="busy || term.trim().length < 2 || term.trim().length > 80"
+                :disabled="
+                    busy || term.trim().length < 2 || term.trim().length > 80
+                "
                 class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
                 <Search class="size-4" />
@@ -122,7 +137,10 @@ function importMovie(id: number): void {
             {{ tmdbError || errors?.tmdb }}
         </div>
 
-        <div v-if="!query" class="rounded-xl border border-dashed px-6 py-14 text-center">
+        <div
+            v-if="!query"
+            class="rounded-xl border border-dashed px-6 py-14 text-center"
+        >
             <Sparkles class="mx-auto mb-4 size-9 text-muted-foreground" />
             <h2 class="text-lg font-semibold">Mulai dari judul film</h2>
             <p class="mt-2 text-sm text-muted-foreground">
@@ -167,16 +185,26 @@ function importMovie(id: number): void {
                         Tanpa poster
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col">
-                        <h3 class="line-clamp-2 font-semibold">{{ movie.title }}</h3>
+                        <h3 class="line-clamp-2 font-semibold">
+                            {{ movie.title }}
+                        </h3>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            {{ movie.release_date?.slice(0, 4) || 'Tahun tidak tersedia' }}
+                            {{
+                                movie.release_date?.slice(0, 4) ||
+                                'Tahun tidak tersedia'
+                            }}
                         </p>
-                        <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+                        <p
+                            class="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground"
+                        >
                             {{ movie.overview || 'Sinopsis belum tersedia.' }}
                         </p>
                         <button
                             type="button"
-                            :disabled="importingId !== null || importedIds.includes(movie.id)"
+                            :disabled="
+                                importingId !== null ||
+                                importedIds.includes(movie.id)
+                            "
                             class="mt-auto inline-flex min-h-10 items-center justify-center rounded-lg border border-primary bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
                             @click="importMovie(movie.id)"
                         >
@@ -200,8 +228,9 @@ function importMovie(id: number): void {
                 target="_blank"
                 rel="noopener noreferrer"
                 class="font-medium underline underline-offset-2"
-            >TMDB</a>.
-            This product uses the TMDB API but is not endorsed or certified by TMDB.
+                >TMDB</a
+            >. This product uses the TMDB API but is not endorsed or certified
+            by TMDB.
         </p>
     </div>
 </template>
