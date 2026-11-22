@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid } from '@lucide/vue';
+import { BookOpen, Film, FolderGit2, LayoutGrid, Search } from '@lucide/vue';
+import { usePage } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -17,18 +18,33 @@ import {
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
 
+const page = usePage();
+
 const mainNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
     },
+    {
+        title: 'Katalog Film',
+        href: '/movies',
+        icon: Film,
+    },
+];
+
+const adminNavItems: NavItem[] = [
+    {
+        title: 'Impor Film TMDB',
+        href: '/admin/movies/import',
+        icon: Search,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
-        href: 'https://github.com/laravel/vue-starter-kit',
+        href: 'https://github.com/novaladriann/cinem4-laravel',
         icon: FolderGit2,
     },
     {
@@ -55,6 +71,10 @@ const footerNavItems: NavItem[] = [
 
         <SidebarContent>
             <NavMain :items="mainNavItems" />
+            <NavMain
+                v-if="page.props.auth.user?.is_admin"
+                :items="adminNavItems"
+            />
         </SidebarContent>
 
         <SidebarFooter>
