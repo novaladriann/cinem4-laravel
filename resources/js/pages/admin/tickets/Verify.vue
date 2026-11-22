@@ -75,9 +75,9 @@ function redeem(): void {
                                 ? 'Perlu pemeriksaan pembayaran'
                                 : ticket.used_at
                                   ? 'Sudah digunakan'
-                                : ticket.booking.status === 'paid'
-                                  ? 'Valid dan belum digunakan'
-                                  : 'Tidak valid'
+                                  : ticket.booking.status === 'paid'
+                                    ? 'Valid dan belum digunakan'
+                                    : 'Tidak valid'
                         }}
                     </dd>
                 </div>
@@ -86,7 +86,11 @@ function redeem(): void {
                 {{ errors }}
             </p>
             <button
-                v-if="ticket.booking.status === 'paid' && !ticket.used_at && !ticket.needs_review"
+                v-if="
+                    ticket.booking.status === 'paid' &&
+                    !ticket.used_at &&
+                    !ticket.needs_review
+                "
                 type="button"
                 class="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 @click="redeem"

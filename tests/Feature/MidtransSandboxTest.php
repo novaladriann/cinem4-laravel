@@ -12,6 +12,7 @@ use App\Services\SeatReservationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class MidtransSandboxTest extends TestCase
@@ -361,14 +362,14 @@ class MidtransSandboxTest extends TestCase
         ]);
         $this->get(route('tickets.qr', $booking))->assertStatus(409);
         $this->get(route('bookings.show', $booking))
-            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('bookings/Show')
                 ->where('requiresReview', true));
 
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin)
             ->get(route('admin.tickets.verify', $ticket->code))
-            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('admin/tickets/Verify')
                 ->where('ticket.needs_review', true));
 
@@ -378,5 +379,4 @@ class MidtransSandboxTest extends TestCase
 
         $this->assertNull($ticket->fresh()->used_at);
     }
-
 }
