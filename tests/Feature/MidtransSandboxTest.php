@@ -328,14 +328,19 @@ class MidtransSandboxTest extends TestCase
         $this->post(route('payments.start', $booking));
         $booking->refresh();
 
-        Http::fake([
-            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+        Http::fakeSequence('api.sandbox.midtrans.com/v2/*/status')
+            ->push([
                 'order_id' => $booking->midtrans_order_id,
                 'gross_amount' => '90000.00',
                 'transaction_status' => 'settlement',
                 'status_code' => '200',
-            ]),
-        ]);
+            ])
+            ->push([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'refund',
+                'status_code' => '200',
+            ]);
 
         $this->post(route('payments.refresh', $booking))
             ->assertRedirect(route('bookings.show', $booking));
@@ -344,14 +349,7 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame('paid', $booking->fresh()->status);
         $this->get(route('tickets.qr', $booking))->assertOk();
 
-        Http::fake([
-            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
-                'order_id' => $booking->midtrans_order_id,
-                'gross_amount' => '90000.00',
-                'transaction_status' => 'refund',
-                'status_code' => '200',
-            ]),
-        ]);
+;
 
         $this->post(route('payments.refresh', $booking))
             ->assertRedirect(route('bookings.show', $booking));
