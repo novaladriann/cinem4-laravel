@@ -28,6 +28,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'midtrans' => [
+        'sandbox_server_key' => env('MIDTRANS_SANDBOX_SERVER_KEY'),
+    ],
+
     'tmdb' => [
         'token' => env('TMDB_API_READ_TOKEN'),
     ],

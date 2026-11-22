@@ -128,9 +128,13 @@ class ScheduleManagementController extends Controller
         DB::transaction(function () use ($schedule): void {
             $schedule = Schedule::query()->whereKey($schedule->getKey())->lockForUpdate()->firstOrFail();
 
-            if ($schedule->bookings()->where('status', 'paid')->exists()) {
+            if ($schedule->bookings()->where('status', 'paid')->orWhere(function ($query) use ($schedule): void {
+                $query->where('id_schedule', $schedule->id_schedule)
+                    ->where('status', 'pending')
+                    ->whereNotNull('midtrans_order_id');
+            })->exists()) {
                 throw ValidationException::withMessages([
-                    'schedule' => 'Jadwal memiliki pembayaran berhasil. Selesaikan refund sebelum membatalkan.',
+                    'schedule' => 'Jadwal memiliki pembayaran berhasil atau sesi Midtrans aktif. Selesaikan pembayaran/refund terlebih dahulu.',
                 ]);
             }
 

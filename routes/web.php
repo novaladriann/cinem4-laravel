@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\ScheduleManagementController;
 use App\Http\Controllers\Admin\StudioManagementController;
 use App\Http\Controllers\Admin\TmdbMovieController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\MidtransPaymentController;
 use App\Http\Controllers\MovieCatalogController;
 use App\Http\Controllers\ShowtimeController;
 use Illuminate\Support\Facades\Route;
@@ -15,11 +16,17 @@ Route::get('/movies', MovieCatalogController::class)->name('movies.index');
 Route::get('/showtimes', [ShowtimeController::class, 'index'])->name('showtimes.index');
 Route::get('/showtimes/{schedule}', [ShowtimeController::class, 'show'])->name('showtimes.show');
 
+// Midtrans callback uses signed request plus server-side status lookup, not browser sessions.
+Route::post('/webhooks/midtrans', [MidtransPaymentController::class, 'webhook'])
+    ->middleware('throttle:120,1')->name('midtrans.webhook');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
     Route::post('/showtimes/{schedule}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
     Route::get('/my-bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/my-bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
+    Route::post('/my-bookings/{booking}/pay', [MidtransPaymentController::class, 'start'])->middleware('throttle:5,1')->name('payments.start');
+    Route::post('/my-bookings/{booking}/refresh', [MidtransPaymentController::class, 'refresh'])->middleware('throttle:10,1')->name('payments.refresh');
     Route::patch('/my-bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
 });
 

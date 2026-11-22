@@ -123,7 +123,10 @@ class SeatReservationService
                 $query->where('bookings.status', 'paid')
                     ->orWhere(function ($pending): void {
                         $pending->where('bookings.status', 'pending')
-                            ->where('bookings.expires_at', '>', now());
+                            ->where(function ($active): void {
+                                $active->where('bookings.expires_at', '>', now())
+                                    ->orWhereNotNull('bookings.midtrans_order_id');
+                            });
                     });
             })
             ->pluck('seat_locks.seat_number')
@@ -136,6 +139,7 @@ class SeatReservationService
         $expired = Booking::query()
             ->where('id_schedule', $scheduleId)
             ->where('status', 'pending')
+            ->whereNull('midtrans_order_id')
             ->where('expires_at', '<=', now())
             ->lockForUpdate()
             ->get();
@@ -154,7 +158,7 @@ class SeatReservationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($booking->status !== 'pending') {
+            if ($booking->status !== 'pending' || $booking->midtrans_order_id !== null) {
                 throw ValidationException::withMessages([
                     'booking' => 'Reservasi ini tidak dapat dibatalkan.',
                 ]);

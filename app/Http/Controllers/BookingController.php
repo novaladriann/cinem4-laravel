@@ -32,7 +32,7 @@ class BookingController extends Controller
         $booking->load(['seats', 'schedule.movie', 'schedule.cinema', 'schedule.studio']);
 
         // Expiration is derived at read time even if no cleanup worker has run.
-        $status = $booking->status === 'pending' && CarbonImmutable::parse((string) $booking->expires_at)->isPast()
+        $status = $booking->status === 'pending' && $booking->midtrans_order_id === null && CarbonImmutable::parse((string) $booking->expires_at)->isPast()
             ? 'expired' : $booking->status;
 
         return Inertia::render('bookings/Show', [

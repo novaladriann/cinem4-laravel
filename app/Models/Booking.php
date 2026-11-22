@@ -19,6 +19,9 @@ class Booking extends Model
         'status',
         'expires_at',
         'paid_at',
+        'midtrans_order_id',
+        'midtrans_redirect_url',
+        'midtrans_started_at',
     ];
 
     protected function casts(): array
@@ -29,6 +32,7 @@ class Booking extends Model
             'total_price' => 'decimal:2',
             'expires_at' => 'datetime',
             'paid_at' => 'datetime',
+            'midtrans_started_at' => 'datetime',
         ];
     }
 

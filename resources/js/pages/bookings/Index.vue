@@ -5,6 +5,7 @@ type Booking = {
     id_booking: number;
     status: string;
     expires_at: string | null;
+    midtrans_order_id: string | null;
     total_price: string;
     seats: { seat_number: number }[];
     schedule: {
@@ -23,6 +24,7 @@ defineProps<{
 }>();
 const actualStatus = (booking: Booking) =>
     booking.status === 'pending' &&
+    !booking.midtrans_order_id &&
     booking.expires_at &&
     new Date(booking.expires_at) <= new Date()
         ? 'expired'
@@ -39,8 +41,7 @@ const actualStatus = (booking: Booking) =>
             >
             <h1 class="mt-8 text-3xl font-bold">Reservasi Saya</h1>
             <p class="mt-3 text-sm text-slate-400">
-                Daftar penahanan kursi dan riwayat reservasi. Pembayaran belum
-                aktif.
+                Daftar reservasi dan riwayat checkout Midtrans Sandbox.
             </p>
             <div
                 v-if="bookings.data.length === 0"
