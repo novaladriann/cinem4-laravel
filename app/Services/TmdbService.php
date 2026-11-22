@@ -23,6 +23,7 @@ class TmdbService
 
             /** @var array<int, array<string, mixed>> $results */
             $results = (array) ($data['results'] ?? []);
+
             return collect($results)
                 ->filter(fn (mixed $movie): bool => is_array($movie) && is_int($movie['id'] ?? null) && ($movie['adult'] ?? false) === false)
                 ->take(20)
