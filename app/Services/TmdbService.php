@@ -21,9 +21,8 @@ class TmdbService
                 'include_adult' => 'false',
             ]);
 
-            $results = is_array($data['results'] ?? null) ? $data['results'] : [];
-
             /** @var array<int, array<string, mixed>> $results */
+            $results = (array) ($data['results'] ?? []);
             return collect($results)
                 ->filter(fn (mixed $movie): bool => is_array($movie) && is_int($movie['id'] ?? null) && ($movie['adult'] ?? false) === false)
                 ->take(20)
@@ -63,18 +62,16 @@ class TmdbService
             throw new RuntimeException('Metadata film dari TMDB tidak lengkap.');
         }
 
-        $genreData = is_array($data['genres'] ?? null) ? $data['genres'] : [];
-
         /** @var array<int, array<string, mixed>> $genreData */
+        $genreData = (array) ($data['genres'] ?? []);
         $genres = collect($genreData)
             ->pluck('name')
             ->filter(fn (mixed $name): bool => is_string($name) && $name !== '')
             ->take(4)
             ->implode(', ');
 
-        $videoData = is_array(data_get($data, 'videos.results')) ? data_get($data, 'videos.results') : [];
-
         /** @var array<int, array<string, mixed>> $videoData */
+        $videoData = (array) data_get($data, 'videos.results', []);
         $video = collect($videoData)
             ->first(fn (mixed $item): bool => is_array($item)
                 && ($item['site'] ?? null) === 'YouTube'
