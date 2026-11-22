@@ -23,7 +23,7 @@ type Booking = {
     };
 };
 
-const props = defineProps<{ booking: Booking; displayStatus: string }>();
+const props = defineProps<{ booking: Booking; displayStatus: string; requiresReview: boolean }>();
 const page = usePage();
 const paymentError = computed(
     () => (page.props.errors as Record<string, string> | undefined)?.payment,
@@ -194,7 +194,7 @@ function cancelBooking(): void {
                     </button>
                 </div>
                 <section
-                    v-if="displayStatus === 'paid' && booking.ticket"
+                    v-if="displayStatus === 'paid' && booking.ticket && !requiresReview"
                     class="mt-7 rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5 text-center"
                     aria-label="E-ticket CINEM4"
                 >
@@ -218,8 +218,9 @@ function cancelBooking(): void {
                         }}
                     </p>
                 </section>
+                <p v-if="requiresReview" role="alert" class="mt-7 rounded-xl border border-amber-500/50 p-4 text-sm text-amber-200">Pembayaran memerlukan pemeriksaan admin. QR tiket sementara tidak tersedia; hubungi pengelola bioskop.</p>
                 <p
-                    v-else-if="displayStatus !== 'pending'"
+                    v-else-if="displayStatus !== 'pending' && displayStatus !== 'paid'"
                     class="mt-7 text-sm text-slate-400"
                 >
                     Reservasi ini tidak memiliki penahanan kursi aktif. Status

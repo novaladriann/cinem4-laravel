@@ -16,6 +16,7 @@ class TicketController extends Controller
     {
         abort_unless($booking->id_user === (int) $request->user()->getAuthIdentifier(), 403);
         abort_unless($booking->status === 'paid', 404);
+        abort_if($booking->needsPaymentReview(), 409, 'Tiket menunggu pemeriksaan pembayaran.');
 
         $ticket = $booking->ticket()->firstOrFail();
 

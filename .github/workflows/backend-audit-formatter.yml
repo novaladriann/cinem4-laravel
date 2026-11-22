@@ -1,0 +1,74 @@
+name: Temporary Audit Formatter
+on:
+  push:
+    paths:
+      - .github/workflows/backend-audit-formatter.yml
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci
+      - name: Format and export files
+        run: |
+          composer lint
+          npm run check:fix
+          echo START_AUDIT_0
+          base64 -w0 'app/Models/Booking.php'
+          echo
+          echo END_AUDIT_0
+          echo START_AUDIT_1
+          base64 -w0 'app/Http/Controllers/BookingController.php'
+          echo
+          echo END_AUDIT_1
+          echo START_AUDIT_2
+          base64 -w0 'app/Http/Controllers/TicketController.php'
+          echo
+          echo END_AUDIT_2
+          echo START_AUDIT_3
+          base64 -w0 'app/Http/Controllers/Admin/TicketVerificationController.php'
+          echo
+          echo END_AUDIT_3
+          echo START_AUDIT_4
+          base64 -w0 'resources/js/pages/bookings/Show.vue'
+          echo
+          echo END_AUDIT_4
+          echo START_AUDIT_5
+          base64 -w0 'resources/js/pages/admin/tickets/Verify.vue'
+          echo
+          echo END_AUDIT_5
+          echo START_AUDIT_6
+          base64 -w0 'routes/web.php'
+          echo
+          echo END_AUDIT_6
+          echo START_AUDIT_7
+          base64 -w0 'tests/Feature/MidtransSandboxTest.php'
+          echo
+          echo END_AUDIT_7
+          echo START_AUDIT_8
+          base64 -w0 'docs/PROJECT_STATUS.md'
+          echo
+          echo END_AUDIT_8
+          echo START_AUDIT_9
+          base64 -w0 'docs/ARCHITECTURE.md'
+          echo
+          echo END_AUDIT_9
+          echo START_AUDIT_10
+          base64 -w0 'docs/TESTING.md'
+          echo
+          echo END_AUDIT_10
+          echo START_AUDIT_11
+          base64 -w0 'docs/DECISIONS.md'
+          echo
+          echo END_AUDIT_11

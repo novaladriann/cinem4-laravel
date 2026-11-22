@@ -6,6 +6,7 @@ import { computed } from 'vue';
 type Ticket = {
     code: string;
     used_at: string | null;
+    needs_review: boolean;
     booking: { id_booking: number; status: string; seat_count: number };
     movie: string;
     cinema: string;
@@ -70,8 +71,10 @@ function redeem(): void {
                     <dt class="text-muted-foreground">Status</dt>
                     <dd>
                         {{
-                            ticket.used_at
-                                ? 'Sudah digunakan'
+                            ticket.needs_review
+                                ? 'Perlu pemeriksaan pembayaran'
+                                : ticket.used_at
+                                  ? 'Sudah digunakan'
                                 : ticket.booking.status === 'paid'
                                   ? 'Valid dan belum digunakan'
                                   : 'Tidak valid'
@@ -83,7 +86,7 @@ function redeem(): void {
                 {{ errors }}
             </p>
             <button
-                v-if="ticket.booking.status === 'paid' && !ticket.used_at"
+                v-if="ticket.booking.status === 'paid' && !ticket.used_at && !ticket.needs_review"
                 type="button"
                 class="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 @click="redeem"

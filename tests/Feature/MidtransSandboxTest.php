@@ -319,4 +319,64 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame('pending', $booking->fresh()->status);
         $this->assertDatabaseCount('tickets', 0);
     }
+
+    public function test_refund_review_blocks_ticket_qr_and_gate_redemption(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking));
+        $booking->refresh();
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'settlement',
+                'status_code' => '200',
+            ]),
+        ]);
+
+        $this->post(route('payments.refresh', $booking))
+            ->assertRedirect(route('bookings.show', $booking));
+
+        $ticket = $booking->ticket()->firstOrFail();
+        $this->assertSame('paid', $booking->fresh()->status);
+        $this->get(route('tickets.qr', $booking))->assertOk();
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'refund',
+                'status_code' => '200',
+            ]),
+        ]);
+
+        $this->post(route('payments.refresh', $booking))
+            ->assertRedirect(route('bookings.show', $booking));
+
+        $this->assertDatabaseHas('payment_reviews', [
+            'id_booking' => $booking->id_booking,
+            'midtrans_status' => 'refund',
+        ]);
+        $this->get(route('tickets.qr', $booking))->assertStatus(409);
+        $this->get(route('bookings.show', $booking))
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('bookings/Show')
+                ->where('requiresReview', true));
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->get(route('admin.tickets.verify', $ticket->code))
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('admin/tickets/Verify')
+                ->where('ticket.needs_review', true));
+
+        $this->from(route('admin.tickets.verify', $ticket->code))
+            ->post(route('admin.tickets.redeem', $ticket->code))
+            ->assertSessionHasErrors('ticket');
+
+        $this->assertNull($ticket->fresh()->used_at);
+    }
+
 }

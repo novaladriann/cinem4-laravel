@@ -27,7 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/showtimes/{schedule}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
     Route::get('/my-bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/my-bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
-    Route::get('/my-bookings/{booking}/finish', [MidtransPaymentController::class, 'finish'])->name('payments.finish');
+    Route::get('/my-bookings/{booking}/finish', [MidtransPaymentController::class, 'finish'])->middleware('throttle:10,1')->name('payments.finish');
     Route::get('/my-bookings/{booking}/ticket-qr', [TicketController::class, 'qr'])->name('tickets.qr');
     Route::post('/my-bookings/{booking}/pay', [MidtransPaymentController::class, 'start'])->middleware('throttle:5,1')->name('payments.start');
     Route::post('/my-bookings/{booking}/refresh', [MidtransPaymentController::class, 'refresh'])->middleware('throttle:10,1')->name('payments.refresh');

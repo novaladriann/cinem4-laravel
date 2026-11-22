@@ -38,6 +38,7 @@ class BookingController extends Controller
         return Inertia::render('bookings/Show', [
             'booking' => $booking,
             'displayStatus' => $status,
+            'requiresReview' => $booking->needsPaymentReview(),
         ]);
     }
 

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 class Booking extends Model
 {
@@ -35,6 +36,11 @@ class Booking extends Model
             'paid_at' => 'datetime',
             'midtrans_started_at' => 'datetime',
         ];
+    }
+
+    public function needsPaymentReview(): bool
+    {
+        return DB::table('payment_reviews')->where('id_booking', $this->id_booking)->exists();
     }
 
     /** @return HasOne<Ticket, $this> */

@@ -21,6 +21,7 @@ class TicketVerificationController extends Controller
             'ticket' => [
                 'code' => $ticket->code,
                 'used_at' => $ticket->used_at,
+                'needs_review' => $ticket->booking->needsPaymentReview(),
                 'booking' => $ticket->booking->only(['id_booking', 'status', 'seat_count']),
                 'movie' => $ticket->booking->schedule->movie->title,
                 'cinema' => $ticket->booking->schedule->cinema->name,
@@ -36,9 +37,9 @@ class TicketVerificationController extends Controller
     {
         DB::transaction(function () use ($code): void {
             $ticket = Ticket::query()->where('code', $code)->lockForUpdate()->firstOrFail();
-            $booking = $ticket->booking()->firstOrFail();
+            $booking = $ticket->booking()->lockForUpdate()->firstOrFail();
 
-            if ($booking->status !== 'paid' || $ticket->used_at !== null) {
+            if ($booking->status !== 'paid' || $ticket->used_at !== null || $booking->needsPaymentReview()) {
                 throw ValidationException::withMessages([
                     'ticket' => 'Tiket tidak valid atau sudah digunakan.',
                 ]);
