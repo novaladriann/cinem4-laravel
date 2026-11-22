@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\TmdbMovieController;
 use App\Http\Controllers\MovieCatalogController;
+use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 Route::get('/movies', MovieCatalogController::class)->name('movies.index');
