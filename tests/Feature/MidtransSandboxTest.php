@@ -81,7 +81,7 @@ class MidtransSandboxTest extends TestCase
         $this->actingAs($booking->user);
         $this->fakePaymentCreation();
 
-        $this->post(route('payments.start', $booking))->assertStatus(409);
+        $this->post(route('payments.start', $booking))->assertRedirect('https://app.sandbox.midtrans.com/snap/v4/redirection/test-token');
         $booking->refresh();
 
         $this->assertNotNull($booking->midtrans_order_id);
@@ -89,7 +89,7 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame(2, DB::table('seat_locks')->count());
 
         $orderId = $booking->midtrans_order_id;
-        $this->post(route('payments.start', $booking))->assertStatus(409);
+        $this->post(route('payments.start', $booking))->assertRedirect('https://app.sandbox.midtrans.com/snap/v4/redirection/test-token');
 
         $this->assertSame($orderId, $booking->fresh()->midtrans_order_id);
         Http::assertSentCount(1);
