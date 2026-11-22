@@ -24,7 +24,9 @@ type Booking = {
 
 const props = defineProps<{ booking: Booking; displayStatus: string }>();
 const page = usePage();
-const paymentError = computed(() => (page.props.errors as Record<string, string> | undefined)?.payment);
+const paymentError = computed(
+    () => (page.props.errors as Record<string, string> | undefined)?.payment,
+);
 const expiresAt = computed(() =>
     props.booking.expires_at
         ? new Date(props.booking.expires_at).toLocaleString('id-ID', {
@@ -34,11 +36,19 @@ const expiresAt = computed(() =>
 );
 
 function startPayment(): void {
-    router.post(`/my-bookings/${props.booking.id_booking}/pay`, {}, { preserveScroll: true });
+    router.post(
+        `/my-bookings/${props.booking.id_booking}/pay`,
+        {},
+        { preserveScroll: true },
+    );
 }
 
 function refreshPayment(): void {
-    router.post(`/my-bookings/${props.booking.id_booking}/refresh`, {}, { preserveScroll: true });
+    router.post(
+        `/my-bookings/${props.booking.id_booking}/refresh`,
+        {},
+        { preserveScroll: true },
+    );
 }
 
 function cancelBooking(): void {
@@ -134,19 +144,47 @@ function cancelBooking(): void {
                         <Clock3 class="size-4" /> Kursi sedang ditahan
                     </p>
                     <p class="mt-2 text-sm leading-relaxed text-slate-300">
-                        Masa reservasi hingga {{ expiresAt }}. Pembayaran menggunakan Midtrans Sandbox (uang simulasi). Jika sudah masuk halaman pembayaran, periksa statusnya sebelum mencoba lagi.
+                        Masa reservasi hingga {{ expiresAt }}. Pembayaran
+                        menggunakan Midtrans Sandbox (uang simulasi). Jika sudah
+                        masuk halaman pembayaran, periksa statusnya sebelum
+                        mencoba lagi.
                     </p>
-                    <p v-if="paymentError" role="alert" class="mt-3 text-sm text-red-300">{{ paymentError }}</p>
-                    <button v-if="!booking.midtrans_order_id" type="button"
+                    <p
+                        v-if="paymentError"
+                        role="alert"
+                        class="mt-3 text-sm text-red-300"
+                    >
+                        {{ paymentError }}
+                    </p>
+                    <button
+                        v-if="!booking.midtrans_order_id"
+                        type="button"
                         class="mt-4 min-h-11 w-full rounded-lg bg-amber-400 px-5 font-semibold text-slate-950 hover:bg-amber-300"
-                        @click="startPayment">Bayar dengan Midtrans Sandbox</button>
-                    <button v-if="booking.midtrans_order_id" type="button"
+                        @click="startPayment"
+                    >
+                        Bayar dengan Midtrans Sandbox
+                    </button>
+                    <button
+                        v-if="booking.midtrans_order_id"
+                        type="button"
                         class="mt-4 min-h-11 w-full rounded-lg border border-amber-400 px-5 font-semibold text-amber-300 hover:bg-amber-400/10"
-                        @click="refreshPayment">Periksa Status Pembayaran</button>
-                    <button v-if="booking.midtrans_order_id && booking.midtrans_redirect_url" type="button"
+                        @click="refreshPayment"
+                    >
+                        Periksa Status Pembayaran
+                    </button>
+                    <button
+                        v-if="
+                            booking.midtrans_order_id &&
+                            booking.midtrans_redirect_url
+                        "
+                        type="button"
                         class="mt-3 min-h-11 w-full rounded-lg border border-slate-500 px-5 font-semibold text-slate-200 hover:bg-slate-700/40"
-                        @click="startPayment">Buka kembali checkout Midtrans</button>
-                    <button v-if="!booking.midtrans_order_id"
+                        @click="startPayment"
+                    >
+                        Buka kembali checkout Midtrans
+                    </button>
+                    <button
+                        v-if="!booking.midtrans_order_id"
                         type="button"
                         class="mt-4 min-h-11 rounded-lg border border-red-300/60 px-4 text-sm font-medium text-red-200 hover:bg-red-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300"
                         @click="cancelBooking"
@@ -155,7 +193,8 @@ function cancelBooking(): void {
                     </button>
                 </div>
                 <p v-else class="mt-7 text-sm text-slate-400">
-                    Reservasi ini tidak memiliki penahanan kursi aktif. Status dibayar hanya ditentukan setelah konfirmasi Midtrans.
+                    Reservasi ini tidak memiliki penahanan kursi aktif. Status
+                    dibayar hanya ditentukan setelah konfirmasi Midtrans.
                 </p>
             </div>
         </main>
