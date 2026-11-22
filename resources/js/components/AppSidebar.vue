@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, CalendarDays, Clapperboard, Film, FolderGit2, LayoutGrid, Search } from '@lucide/vue';
+import {
+    BookOpen,
+    CalendarDays,
+    Clapperboard,
+    Film,
+    FolderGit2,
+    LayoutGrid,
+    Search,
+} from '@lucide/vue';
 import { usePage } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
