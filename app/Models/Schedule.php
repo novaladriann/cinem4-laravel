@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Schedule extends Model
 {
@@ -32,6 +33,12 @@ class Schedule extends Model
             'booking_close_minutes' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    /** @return HasMany<Booking, $this> */
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'id_schedule', 'id_schedule');
     }
 
     /** @return BelongsTo<Movie, $this> */

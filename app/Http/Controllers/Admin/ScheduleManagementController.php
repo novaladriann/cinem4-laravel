@@ -125,11 +125,27 @@ class ScheduleManagementController extends Controller
 
     public function cancel(Schedule $schedule): RedirectResponse
     {
-        // Once booking is enabled, cancellation must first resolve paid tickets and refunds.
-        if ($schedule->status !== 'cancelled') {
-            $schedule->update(['status' => 'cancelled', 'is_active' => false]);
-        }
+        DB::transaction(function () use ($schedule): void {
+            $schedule = Schedule::query()->whereKey($schedule->getKey())->lockForUpdate()->firstOrFail();
 
-        return back()->with('success', 'Jadwal dibatalkan tanpa menghapus riwayat.');
+            if ($schedule->bookings()->where('status', 'paid')->exists()) {
+                throw ValidationException::withMessages([
+                    'schedule' => 'Jadwal memiliki pembayaran berhasil. Selesaikan refund sebelum membatalkan.',
+                ]);
+            }
+
+            $pending = $schedule->bookings()->where('status', 'pending')->lockForUpdate()->get();
+
+            foreach ($pending as $booking) {
+                DB::table('seat_locks')->where('id_booking', $booking->id_booking)->delete();
+                $booking->update(['status' => 'cancelled']);
+            }
+
+            if ($schedule->status !== 'cancelled') {
+                $schedule->update(['status' => 'cancelled', 'is_active' => false]);
+            }
+        });
+
+        return back()->with('success', 'Jadwal dibatalkan; reservasi pending dilepas tanpa menghapus riwayat.');
     }
 }

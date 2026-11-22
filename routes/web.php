@@ -5,14 +5,22 @@ use App\Http\Controllers\Admin\MovieManagementController;
 use App\Http\Controllers\Admin\ScheduleManagementController;
 use App\Http\Controllers\Admin\StudioManagementController;
 use App\Http\Controllers\Admin\TmdbMovieController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\MovieCatalogController;
+use App\Http\Controllers\ShowtimeController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 Route::get('/movies', MovieCatalogController::class)->name('movies.index');
+Route::get('/showtimes', [ShowtimeController::class, 'index'])->name('showtimes.index');
+Route::get('/showtimes/{schedule}', [ShowtimeController::class, 'show'])->name('showtimes.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::post('/showtimes/{schedule}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
+    Route::get('/my-bookings', [BookingController::class, 'index'])->name('bookings.index');
+    Route::get('/my-bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
+    Route::patch('/my-bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
 });
 
 Route::middleware(['auth', 'verified', 'can:manage-movies', 'throttle:30,1'])

@@ -180,4 +180,41 @@ class CinemaScheduleManagementTest extends TestCase
             'is_active' => false,
         ]);
     }
+    public function test_cancelling_a_showtime_releases_pending_reservations(): void
+    {
+        $catalog = $this->catalog();
+        $admin = $this->admin();
+        $customer = User::factory()->create();
+
+        $this->actingAs($admin)->post(route('admin.schedules.store'), $this->show($catalog));
+        $schedule = Schedule::query()->firstOrFail();
+        $this->actingAs($customer)->post(route('bookings.store', $schedule), ['seats' => [4]]);
+        $this->assertDatabaseCount('seat_locks', 1);
+
+        $this->actingAs($admin)->patch(route('admin.schedules.cancel', $schedule))->assertRedirect();
+
+        $this->assertDatabaseHas('bookings', ['id_schedule' => $schedule->id_schedule, 'status' => 'cancelled']);
+        $this->assertDatabaseCount('seat_locks', 0);
+        $this->assertDatabaseCount('booking_seats', 1);
+    }
+
+    public function test_paid_reservations_block_showtime_cancellation(): void
+    {
+        $catalog = $this->catalog();
+        $admin = $this->admin();
+        $customer = User::factory()->create();
+
+        $this->actingAs($admin)->post(route('admin.schedules.store'), $this->show($catalog));
+        $schedule = Schedule::query()->firstOrFail();
+        $this->actingAs($customer)->post(route('bookings.store', $schedule), ['seats' => [5]]);
+        \App\Models\Booking::query()->firstOrFail()->update(['status' => 'paid', 'expires_at' => null]);
+
+        $this->actingAs($admin)->from(route('admin.schedules.index'))
+            ->patch(route('admin.schedules.cancel', $schedule))
+            ->assertSessionHasErrors('schedule');
+
+        $this->assertSame('open', $schedule->fresh()->status);
+        $this->assertDatabaseCount('seat_locks', 1);
+    }
+
 }

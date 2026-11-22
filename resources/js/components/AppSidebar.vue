@@ -39,6 +39,16 @@ const mainNavItems: NavItem[] = [
         href: '/movies',
         icon: Film,
     },
+    {
+        title: 'Pilih Jadwal',
+        href: '/showtimes',
+        icon: CalendarDays,
+    },
+    {
+        title: 'Reservasi Saya',
+        href: '/my-bookings',
+        icon: Ticket,
+    },
 ];
 
 const adminNavItems: NavItem[] = [
