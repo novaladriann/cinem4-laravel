@@ -12,6 +12,7 @@ class Schedule extends Model
     protected $fillable = [
         'id_movie',
         'id_cinema',
+        'id_studio',
         'studio_name',
         'show_date',
         'show_time',
@@ -37,6 +38,12 @@ class Schedule extends Model
     public function movie(): BelongsTo
     {
         return $this->belongsTo(Movie::class, 'id_movie', 'id_movie');
+    }
+
+    /** @return BelongsTo<Studio, $this> */
+    public function studio(): BelongsTo
+    {
+        return $this->belongsTo(Studio::class, 'id_studio', 'id_studio');
     }
 
     /** @return BelongsTo<Cinema, $this> */

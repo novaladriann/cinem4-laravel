@@ -24,6 +24,12 @@ class Cinema extends Model
         ];
     }
 
+    /** @return HasMany<Studio, $this> */
+    public function studios(): HasMany
+    {
+        return $this->hasMany(Studio::class, 'id_cinema', 'id_cinema');
+    }
+
     /** @return HasMany<Schedule, $this> */
     public function schedules(): HasMany
     {

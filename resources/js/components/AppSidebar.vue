@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Film, FolderGit2, LayoutGrid, Search } from '@lucide/vue';
+import { BookOpen, CalendarDays, Clapperboard, Film, FolderGit2, LayoutGrid, Search } from '@lucide/vue';
 import { usePage } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -34,6 +34,16 @@ const mainNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+    {
+        title: 'Bioskop & Studio',
+        href: '/admin/cinemas',
+        icon: Clapperboard,
+    },
+    {
+        title: 'Jadwal Tayang',
+        href: '/admin/schedules',
+        icon: CalendarDays,
+    },
     {
         title: 'Kelola Film',
         href: '/admin/movies',
