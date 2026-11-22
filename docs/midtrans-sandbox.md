@@ -30,6 +30,6 @@ Alamat `127.0.0.1` atau `localhost` **tidak dapat dijangkau langsung oleh server
 ## Batasan
 
 - API Sandbox tidak membuktikan kesiapan produksi, harga/ongkos gateway akhir, refund, rekonsiliasi otomatis, atau TiDB.
-- Pending Midtrans yang tidak pernah dikonfirmasi dapat menahan kursi hingga ada webhook atau pelanggan memeriksa status. Sebelum produksi diperlukan *scheduled reconciliation* dengan kebijakan timeout/alert.
+- Pending Midtrans yang tidak pernah dikonfirmasi dapat menahan kursi hingga ada webhook atau pelanggan memeriksa status. Sebelum produksi diperlukan _scheduled reconciliation_ dengan kebijakan timeout/alert.
 - Middleware membatasi tingkat permintaan, tetapi sistem butuh pengujian konkurensi terhadap TiDB langsung dan audit pembayaran sesungguhnya.
 - Belum ada QR tiket masuk atau pembayaran produksi. Tampilan Vue saat ini merupakan antarmuka fungsional pengujian, bukan desain akhir.
