@@ -1,0 +1,25 @@
+name: Temporary PHP format export
+on:
+  push:
+    paths:
+      - .github/workflows/tmdb-php-format-export.yml
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - name: Format TMDB service with Laravel Pint
+        run: |
+          composer lint
+          echo "BEGIN_CINEM4_TMDB_PHP"
+          base64 -w0 app/Services/TmdbService.php
+          echo
+          echo "END_CINEM4_TMDB_PHP"
