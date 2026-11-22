@@ -12,6 +12,7 @@ type Booking = {
     expires_at: string | null;
     midtrans_order_id: string | null;
     midtrans_redirect_url: string | null;
+    ticket: { code: string; used_at: string | null } | null;
     seats: { seat_number: number }[];
     schedule: {
         show_date: string;
@@ -192,7 +193,13 @@ function cancelBooking(): void {
                         Batalkan reservasi
                     </button>
                 </div>
-                <p v-else class="mt-7 text-sm text-slate-400">
+                <section v-if="displayStatus === 'paid' && booking.ticket" class="mt-7 rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5 text-center" aria-label="E-ticket CINEM4">
+                    <h2 class="text-lg font-semibold text-emerald-300">E-ticket berhasil diterbitkan</h2>
+                    <p class="mt-2 text-sm text-slate-300">Tunjukkan QR ini kepada petugas. Satu QR berlaku untuk semua kursi dalam reservasi.</p>
+                    <img :src="`/my-bookings/${booking.id_booking}/ticket-qr`" alt="QR verifikasi e-ticket CINEM4" class="mx-auto mt-5 h-56 w-56 rounded-lg bg-white p-2" />
+                    <p class="mt-3 text-xs text-slate-300">{{ booking.ticket.used_at ? 'Tiket sudah digunakan' : 'Belum digunakan' }}</p>
+                </section>
+                <p v-else-if="displayStatus !== 'pending'" class="mt-7 text-sm text-slate-400">
                     Reservasi ini tidak memiliki penahanan kursi aktif. Status
                     dibayar hanya ditentukan setelah konfirmasi Midtrans.
                 </p>

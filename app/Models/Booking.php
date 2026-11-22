@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Booking extends Model
 {
@@ -34,6 +35,12 @@ class Booking extends Model
             'paid_at' => 'datetime',
             'midtrans_started_at' => 'datetime',
         ];
+    }
+
+    /** @return HasOne<Ticket, $this> */
+    public function ticket(): HasOne
+    {
+        return $this->hasOne(Ticket::class, 'id_booking', 'id_booking');
     }
 
     /** @return BelongsTo<User, $this> */

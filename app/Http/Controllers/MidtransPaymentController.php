@@ -29,6 +29,26 @@ class MidtransPaymentController extends Controller
         return Inertia::location($url);
     }
 
+    public function finish(Request $request, Booking $booking, MidtransSandboxService $payments): RedirectResponse
+    {
+        abort_unless($booking->id_user === (int) $request->user()->getAuthIdentifier(), 403);
+
+        // Ignore untrusted query parameters from the browser; verify against Midtrans directly.
+        if ($booking->status === 'pending' && $booking->midtrans_order_id !== null) {
+            try {
+                $payments->reconcile($booking);
+            } catch (ConnectionException|RequestException $exception) {
+                report($exception);
+
+                return to_route('bookings.show', $booking)->withErrors([
+                    'payment' => 'Status pembayaran belum dapat diperiksa. Gunakan tombol Periksa Status Pembayaran.',
+                ]);
+            }
+        }
+
+        return to_route('bookings.show', $booking);
+    }
+
     public function refresh(Request $request, Booking $booking, MidtransSandboxService $payments): RedirectResponse
     {
         abort_unless($booking->id_user === (int) $request->user()->getAuthIdentifier(), 403);

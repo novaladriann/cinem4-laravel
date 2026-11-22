@@ -136,6 +136,7 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame('paid', $booking->fresh()->status);
         $this->assertDatabaseCount('seat_locks', 2);
         $this->assertDatabaseCount('bookings', 1);
+        $this->assertDatabaseCount('tickets', 1);
     }
 
     public function test_expired_payment_releases_seats_but_keeps_booking_history(): void
@@ -216,4 +217,106 @@ class MidtransSandboxTest extends TestCase
         $this->assertNull($booking->fresh()->midtrans_order_id);
         Http::assertNothingSent();
     }
+    public function test_snap_checkout_sets_finish_callback_to_owned_booking(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+
+        $this->post(route('payments.start', $booking))->assertRedirect();
+        Http::assertSent(function ($request) use ($booking): bool {
+            return $request->url() === 'https://app.sandbox.midtrans.com/snap/v1/transactions'
+                && $request['callbacks']['finish'] === route('payments.finish', $booking);
+        });
+    }
+
+    public function test_finish_redirect_ignores_forged_browser_status_and_checks_midtrans(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking));
+        $booking->refresh();
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'pending',
+                'status_code' => '201',
+            ]),
+        ]);
+
+        $this->get(route('payments.finish', $booking).'?transaction_status=settlement')
+            ->assertRedirect(route('bookings.show', $booking));
+
+        $this->assertSame('pending', $booking->fresh()->status);
+        $this->assertDatabaseCount('tickets', 0);
+    }
+
+    public function test_paid_booking_ticket_is_private_and_admin_can_redeem_only_once(): void
+    {
+        $booking = $this->pendingBooking();
+        $owner = $booking->user;
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking));
+        $booking->refresh();
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'settlement',
+                'status_code' => '200',
+            ]),
+        ]);
+
+        $this->get(route('payments.finish', $booking))->assertRedirect(route('bookings.show', $booking));
+
+        $ticket = $booking->ticket()->firstOrFail();
+        $this->assertSame(48, strlen($ticket->code));
+
+        $this->get(route('tickets.qr', $booking))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/svg+xml');
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('tickets.qr', $booking))->assertForbidden();
+
+        $this->get(route('admin.tickets.verify', $ticket->code))->assertForbidden();
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->get(route('admin.tickets.verify', $ticket->code))->assertOk();
+
+        $this->post(route('admin.tickets.redeem', $ticket->code))->assertRedirect();
+        $this->assertNotNull($ticket->fresh()->used_at);
+
+        $this->from(route('admin.tickets.verify', $ticket->code))
+            ->post(route('admin.tickets.redeem', $ticket->code))
+            ->assertSessionHasErrors('ticket');
+
+        $this->assertDatabaseCount('tickets', 1);
+    }
+
+    public function test_reconciliation_command_does_not_approve_unconfirmed_payments(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking));
+        $booking->refresh();
+        $booking->update(['midtrans_started_at' => now()->subMinutes(6)]);
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'pending',
+                'status_code' => '201',
+            ]),
+        ]);
+
+        $this->artisan('payments:reconcile')->assertSuccessful();
+        $this->assertSame('pending', $booking->fresh()->status);
+        $this->assertDatabaseCount('tickets', 0);
+    }
+
 }

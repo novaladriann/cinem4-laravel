@@ -29,7 +29,7 @@ class BookingController extends Controller
     {
         abort_unless($booking->id_user === (int) $request->user()->getAuthIdentifier(), 403);
 
-        $booking->load(['seats', 'schedule.movie', 'schedule.cinema', 'schedule.studio']);
+        $booking->load(['seats', 'ticket', 'schedule.movie', 'schedule.cinema', 'schedule.studio']);
 
         // Expiration is derived at read time even if no cleanup worker has run.
         $status = $booking->status === 'pending' && $booking->midtrans_order_id === null && CarbonImmutable::parse((string) $booking->expires_at)->isPast()

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -57,6 +58,9 @@ class MidtransSandboxService
                 'transaction_details' => [
                     'order_id' => $booking->midtrans_order_id,
                     'gross_amount' => (int) $booking->total_price,
+                ],
+                'callbacks' => [
+                    'finish' => route('payments.finish', $booking),
                 ],
                 'expiry' => [
                     'start_time' => CarbonImmutable::parse((string) $booking->midtrans_started_at)
@@ -152,6 +156,11 @@ class MidtransSandboxService
 
             if ($success) {
                 if ($booking->status === 'paid') {
+                    Ticket::query()->firstOrCreate(
+                        ['id_booking' => $booking->id_booking],
+                        ['code' => Str::random(48)],
+                    );
+
                     return;
                 }
 
@@ -169,6 +178,11 @@ class MidtransSandboxService
                     'paid_at' => now(),
                     'expires_at' => null,
                 ]);
+
+                Ticket::query()->firstOrCreate(
+                    ['id_booking' => $booking->id_booking],
+                    ['code' => Str::random(48)],
+                );
 
                 return;
             }
