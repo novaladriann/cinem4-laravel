@@ -25,7 +25,7 @@ class TmdbService
             /** @var array<int, array<string, mixed>> $results */
 
             return collect($results)
-                ->filter(fn (mixed $movie): bool => is_array($movie) && is_int($movie['id'] ?? null) && ! ($movie['adult'] ?? false))
+                ->filter(fn (mixed $movie): bool => is_array($movie) && is_int($movie['id'] ?? null) && ($movie['adult'] ?? false) === false)
                 ->take(20)
                 ->map(fn (array $movie): array => [
                     'id' => $movie['id'],
@@ -101,7 +101,7 @@ class TmdbService
 
     public function imageUrl(mixed $path, string $size): ?string
     {
-        if (! is_string($path) || ! preg_match('/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i', $path)) {
+        if (is_string($path) === false || preg_match('/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i', $path) !== 1) {
             return null;
         }
 
@@ -116,7 +116,7 @@ class TmdbService
     {
         $token = config('services.tmdb.token');
 
-        if (! is_string($token) || trim($token) === '') {
+        if (is_string($token) === false || trim($token) === '') {
             throw new RuntimeException('TMDB_API_READ_TOKEN belum diatur pada server.');
         }
 
@@ -130,7 +130,7 @@ class TmdbService
 
         $data = $response->json();
 
-        if (! is_array($data)) {
+        if (is_array($data) === false) {
             throw new RuntimeException('TMDB mengembalikan respons yang tidak valid.');
         }
 
