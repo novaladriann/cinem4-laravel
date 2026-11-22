@@ -1,0 +1,27 @@
+name: Temporary formatted-file export
+on:
+  push:
+    paths:
+      - .github/workflows/tmdb-format-export.yml
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Run project formatter and export generated Vue files
+        run: |
+          npm run check:fix
+          echo "BEGIN_CINEM4_ADMIN_VUE"
+          base64 -w0 resources/js/pages/admin/movies/Import.vue
+          echo
+          echo "END_CINEM4_ADMIN_VUE"
+          echo "BEGIN_CINEM4_PUBLIC_VUE"
+          base64 -w0 resources/js/pages/movies/Index.vue
+          echo
+          echo "END_CINEM4_PUBLIC_VUE"
