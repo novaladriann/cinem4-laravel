@@ -93,7 +93,7 @@ class ScheduleManagementController extends Controller
                 ->get();
 
             foreach ($others as $other) {
-                $otherStart = CarbonImmutable::parse((string) $other->getRawOriginal('show_date').' '.(string) $other->getRawOriginal('show_time'), 'Asia/Jakarta');
+                $otherStart = CarbonImmutable::parse(substr((string) $other->getRawOriginal('show_date'), 0, 10).' '.(string) $other->getRawOriginal('show_time'), 'Asia/Jakarta');
                 $duration = (int) ($other->movie->duration_minute ?? 0);
                 $turnaround = (int) ($other->studio->turnaround_minutes ?? $studio->turnaround_minutes);
                 $otherEnd = $otherStart->addMinutes($duration + $turnaround);
