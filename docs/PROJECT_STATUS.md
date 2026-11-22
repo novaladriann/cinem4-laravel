@@ -16,7 +16,7 @@ Dokumen ini menjadi titik awal saat melanjutkan pekerjaan. Perbarui setelah comm
 
 1. **P0 — Verifikasi checkout Midtrans Sandbox pada browser nyata** termasuk callback finish, webhook via HTTPS publik, dan timeout. CI memakai mock Midtrans dan tidak membuktikan integrasi aktual.
 2. **P0 — Uji konkurensi pada TiDB Cloud** terhadap dua reservasi serentak dan pembaruan status pembayaran; SQLite test saja tidak cukup.
-3. **P1 — Pulihkan retry Snap jika respons pembuatan transaksi hilang**. `midtrans_order_id` tersimpan sebelum network request; bila respons pertama timeout, retry ke Snap dapat menerima duplicate-order dan URL checkout tidak tersedia. Rancang rekonsiliasi token/order berbasis respons provider; jangan membuat ID baru secara otomatis.
+3. **P1 — Recovery Snap belum sepenuhnya otomatis**. UI memungkinkan retry Snap dengan **order ID yang sama** setelah timeout dan menolak pembentukan checkout yang sudah melewati jendela 15 menit. Jika Midtrans mengembalikan duplicate order tetapi URL lama hilang, sistem sengaja mempertahankan lock dan memerlukan pemeriksaan status/manual; URL tidak dapat diperoleh dari Get Status API. Belum ada workflow operator menyelesaikan kasus ini.
 4. **P1 — Operasional payment review/refund**. Entri `payment_reviews` mengunci penggunaan tiket, tetapi belum ada workflow admin untuk review, refund, penutupan kasus, dan notifikasi ke pelanggan.
 5. **P1 — Retensi data, monitoring, alerting, backup, recovery, dan uji deployment HTTPS**.
 6. **P2 — E-ticket per orang/kursi**: saat ini satu QR mengwakili satu booking, termasuk beberapa kursi.

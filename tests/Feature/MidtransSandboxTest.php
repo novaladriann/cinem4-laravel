@@ -375,4 +375,127 @@ class MidtransSandboxTest extends TestCase
 
         $this->assertNull($ticket->fresh()->used_at);
     }
+
+    public function test_snap_checkout_can_retry_with_same_order_id_after_provider_error(): void
+    {
+        $booking = $this->pendingBooking();
+
+        Http::fakeSequence('app.sandbox.midtrans.com/snap/v1/transactions')
+            ->push(['error_messages' => ['temporary unavailable']], 503)
+            ->push([
+                'token' => 'recovered-token',
+                'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v4/redirection/recovered-token',
+            ], 201);
+
+        $this->from(route('bookings.show', $booking))
+            ->post(route('payments.start', $booking))
+            ->assertSessionHasErrors('payment');
+
+        $booking->refresh();
+        $orderId = $booking->midtrans_order_id;
+        $this->assertNotNull($orderId);
+        $this->assertNull($booking->midtrans_redirect_url);
+        $this->assertSame(2, DB::table('seat_locks')->count());
+
+        $this->post(route('payments.start', $booking))
+            ->assertRedirect('https://app.sandbox.midtrans.com/snap/v4/redirection/recovered-token');
+
+        $this->assertSame($orderId, $booking->fresh()->midtrans_order_id);
+        Http::assertSentCount(2);
+    }
+
+    public function test_midtrans_duplicate_order_never_rotates_order_id_or_releases_seats(): void
+    {
+        $booking = $this->pendingBooking();
+
+        Http::fake([
+            'app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
+                'error_messages' => ['transaction_details.order_id has been taken'],
+            ], 400),
+        ]);
+
+        $this->from(route('bookings.show', $booking))
+            ->post(route('payments.start', $booking))
+            ->assertSessionHasErrors('payment');
+
+        $booking->refresh();
+        $this->assertNotNull($booking->midtrans_order_id);
+        $this->assertSame('pending', $booking->status);
+        $this->assertNull($booking->midtrans_redirect_url);
+        $this->assertDatabaseCount('seat_locks', 2);
+    }
+
+    public function test_snap_retry_past_payment_window_does_not_create_a_new_order(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking))->assertRedirect();
+
+        $booking->refresh();
+        $orderId = $booking->midtrans_order_id;
+        $booking->update(['midtrans_redirect_url' => null, 'midtrans_started_at' => now()->subMinutes(20)]);
+
+        Http::fake([]);
+        $this->from(route('bookings.show', $booking))
+            ->post(route('payments.start', $booking))
+            ->assertSessionHasErrors('payment');
+
+        $this->assertSame($orderId, $booking->fresh()->midtrans_order_id);
+        $this->assertDatabaseCount('seat_locks', 2);
+        Http::assertSentCount(1);
+    }
+
+    public function test_status_404_before_payment_method_does_not_expire_booking(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking))->assertRedirect();
+
+        Http::fake([
+            'api.sandbox.midtrans.com/v2/*/status' => Http::response([
+                'status_message' => 'Transaction does not exist',
+            ], 404),
+        ]);
+
+        $this->post(route('payments.refresh', $booking))
+            ->assertRedirect(route('bookings.show', $booking));
+
+        $this->assertSame('pending', $booking->fresh()->status);
+        $this->assertDatabaseCount('seat_locks', 2);
+        $this->assertDatabaseCount('tickets', 0);
+    }
+
+    public function test_denied_snap_attempt_keeps_seats_for_successful_retry(): void
+    {
+        $booking = $this->pendingBooking();
+        $this->fakePaymentCreation();
+        $this->post(route('payments.start', $booking))->assertRedirect();
+        $booking->refresh();
+
+        Http::fakeSequence('api.sandbox.midtrans.com/v2/*/status')
+            ->push([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'deny',
+                'status_code' => '202',
+            ])
+            ->push([
+                'order_id' => $booking->midtrans_order_id,
+                'gross_amount' => '90000.00',
+                'transaction_status' => 'settlement',
+                'status_code' => '200',
+            ]);
+
+        $this->post(route('payments.refresh', $booking))->assertRedirect();
+
+        $this->assertSame('pending', $booking->fresh()->status);
+        $this->assertDatabaseCount('seat_locks', 2);
+
+        $this->post(route('payments.refresh', $booking))->assertRedirect();
+
+        $this->assertSame('paid', $booking->fresh()->status);
+        $this->assertDatabaseCount('tickets', 1);
+        $this->assertDatabaseCount('seat_locks', 2);
+    }
+
 }

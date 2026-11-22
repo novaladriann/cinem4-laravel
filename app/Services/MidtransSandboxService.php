@@ -51,6 +51,15 @@ class MidtransSandboxService
             return $this->validatedRedirect($booking->midtrans_redirect_url);
         }
 
+        // A lost Snap response can be retried with the SAME order ID while its
+        // checkout is still valid. Never rotate the order ID automatically.
+        if (CarbonImmutable::parse((string) $booking->midtrans_started_at)
+            ->addMinutes(self::PAYMENT_WINDOW_MINUTES)->isPast()) {
+            throw ValidationException::withMessages([
+                'payment' => 'Sesi checkout telah melewati batas waktu. Periksa status pembayaran atau hubungi admin; kursi tidak akan dilepas sebelum status jelas.',
+            ]);
+        }
+
         // Reuse the persisted order id on retries. Never create a second charge id.
         $response = Http::withBasicAuth($this->serverKey(), '')
             ->acceptJson()->asJson()->connectTimeout(3)->timeout(12)
@@ -69,6 +78,15 @@ class MidtransSandboxService
                     'duration' => self::PAYMENT_WINDOW_MINUTES,
                 ],
             ]);
+
+        if (in_array($response->status(), [400, 406], true)
+            && str_contains(strtolower((string) $response->body()), 'order_id')) {
+            // Snap may already hold this order ID (including a payment in progress).
+            // Get Status can still return 404 before the customer picks a method.
+            throw ValidationException::withMessages([
+                'payment' => 'Order Midtrans sudah dipakai atau sedang diproses. Periksa Status Pembayaran; bila checkout tidak dapat dibuka, hubungi admin.',
+            ]);
+        }
 
         $response->throw();
 
@@ -117,6 +135,12 @@ class MidtransSandboxService
         $response = Http::withBasicAuth($this->serverKey(), '')
             ->acceptJson()->connectTimeout(3)->timeout(10)
             ->get(self::STATUS_ENDPOINT.rawurlencode($booking->midtrans_order_id).'/status');
+
+        // Snap has no Core API status until the customer selects a payment
+        // method. A 404 is NOT proof the Snap checkout/order can be discarded.
+        if ($response->status() === 404) {
+            return;
+        }
 
         $response->throw();
         $payload = $response->json();
@@ -187,7 +211,17 @@ class MidtransSandboxService
                 return;
             }
 
-            if (in_array($status, ['expire', 'cancel', 'deny', 'failure'], true)) {
+            if ($status === 'deny') {
+                // Snap permits multiple attempts for one order. A denied attempt
+                // must not release seats when another method can still succeed.
+                if ($booking->status === 'paid') {
+                    $this->flagForReview($booking, $status, 'Kemungkinan reversal setelah pembayaran berhasil.');
+                }
+
+                return;
+            }
+
+            if (in_array($status, ['expire', 'cancel', 'failure'], true)) {
                 if ($booking->status === 'paid') {
                     $this->flagForReview($booking, $status, 'Status pembayaran berubah setelah berhasil.');
 

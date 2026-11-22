@@ -25,6 +25,9 @@ Jangan jalankan `migrate:fresh` pada database development yang harus dipertahank
 - Pemesanan kursi yang sama ditolak; hold kedaluwarsa tanpa Midtrans dapat dilepas. Booking dengan order Midtrans aktif tidak dilepas hanya karena timer lokal.
 - Notifikasi Midtrans tanpa signature sah ditolak, status harus diverifikasi dari API, nominal harus cocok, callback browser tidak bisa memalsukan status paid.
 - Notifikasi pembayaran berulang tidak membuat tiket ganda; QR hanya untuk paid.
+- Checkout gagal karena timeout bisa dicoba ulang memakai order ID yang sama. Respons duplicate-order tidak membuat order baru atau melepaskan kursi.
+- Get Status 404 sebelum pemilihan metode pembayaran tidak membuat booking expired maupun membebaskan kursi.
+- Status `deny` dari satu upaya pembayaran Snap tidak membebaskan kursi; keberhasilan upaya berikutnya pada order yang sama tetap dapat menghasilkan tiket.
 - **Audit regression:** refund/chargeback atau payment review membuat QR tidak dapat diberikan dan admin tidak boleh redeem, walaupun status booking masih paid.
 - Tiket yang sudah redeemed tidak dapat dipakai ulang.
 
@@ -32,7 +35,7 @@ Jangan jalankan `migrate:fresh` pada database development yang harus dipertahank
 
 - Browser nyata: bayar Midtrans Sandbox, callback finish ke CINEM4, cek status dan QR.
 - Webhook lewat endpoint HTTPS publik dengan status sukses, pending, expire, refund, duplikasi, dan out-of-order.
-- Putus sambungan provider setelah membuat order lalu coba recover pembayaran tanpa membuat double charge.
+- Putus sambungan provider setelah membuat order lalu coba retry dengan order ID yang sama; verifikasi penanganan error duplicate-order dan sesi yang sudah tidak dapat dibuka.
 - Dua user paralel memesan kursi sama pada TiDB; simultan webhook vs pembatalan dan dua petugas redeem tiket sama.
 - Migrasi database TiDB isolasi, backup/restore, dan cek kolasi, foreign key, waktu/zona, serta transaksi.
 - Periksa accessibility, keyboard focus, dan tampilan mobile setelah frontend final.

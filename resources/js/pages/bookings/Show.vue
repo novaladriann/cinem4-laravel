@@ -150,9 +150,10 @@ function cancelBooking(): void {
                     </p>
                     <p class="mt-2 text-sm leading-relaxed text-slate-300">
                         Masa reservasi hingga {{ expiresAt }}. Pembayaran
-                        menggunakan Midtrans Sandbox (uang simulasi). Jika sudah
-                        masuk halaman pembayaran, periksa statusnya sebelum
-                        mencoba lagi.
+                        menggunakan Midtrans Sandbox (uang simulasi). Setelah
+                        order Midtrans dibuat, kursi tetap ditahan sampai status
+                        transaksi dipastikan. Jangan membuat reservasi baru jika
+                        checkout atau jaringan mengalami kendala.
                     </p>
                     <p
                         v-if="paymentError"
@@ -162,12 +163,12 @@ function cancelBooking(): void {
                         {{ paymentError }}
                     </p>
                     <button
-                        v-if="!booking.midtrans_order_id"
+                        v-if="!booking.midtrans_redirect_url"
                         type="button"
                         class="mt-4 min-h-11 w-full rounded-lg bg-amber-400 px-5 font-semibold text-slate-950 hover:bg-amber-300"
                         @click="startPayment"
                     >
-                        Bayar dengan Midtrans Sandbox
+                        {{ booking.midtrans_order_id ? 'Coba pulihkan checkout Sandbox' : 'Bayar dengan Midtrans Sandbox' }}
                     </button>
                     <button
                         v-if="booking.midtrans_order_id"
