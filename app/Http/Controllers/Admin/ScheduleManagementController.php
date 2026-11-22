@@ -63,9 +63,9 @@ class ScheduleManagementController extends Controller
 
         DB::transaction(function () use ($data, $start): void {
             // Serialize schedule creation per cinema so two simultaneous admin requests cannot both pass the overlap check.
-            $cinema = Cinema::query()->lockForUpdate()->findOrFail($data['id_cinema']);
-            $movie = Movie::query()->findOrFail($data['id_movie']);
-            $studio = Studio::query()->findOrFail($data['id_studio']);
+            $cinema = Cinema::query()->whereKey($data['id_cinema'])->lockForUpdate()->firstOrFail();
+            $movie = Movie::query()->whereKey($data['id_movie'])->firstOrFail();
+            $studio = Studio::query()->whereKey($data['id_studio'])->firstOrFail();
 
             if (! $cinema->is_active || ! $studio->is_active || $studio->id_cinema !== $cinema->id_cinema) {
                 throw ValidationException::withMessages(['id_studio' => 'Studio harus aktif dan berada di bioskop yang dipilih.']);
@@ -92,9 +92,9 @@ class ScheduleManagementController extends Controller
                 ->get();
 
             foreach ($others as $other) {
-                $otherStart = CarbonImmutable::parse($other->show_date->format('Y-m-d').' '.$other->show_time, 'Asia/Jakarta');
-                $duration = (int) ($other->movie?->duration_minute ?? 0);
-                $turnaround = (int) ($other->studio?->turnaround_minutes ?? $studio->turnaround_minutes);
+                $otherStart = CarbonImmutable::parse((string) $other->getRawOriginal('show_date').' '.(string) $other->getRawOriginal('show_time'), 'Asia/Jakarta');
+                $duration = (int) ($other->movie->duration_minute ?? 0);
+                $turnaround = (int) ($other->studio->turnaround_minutes ?? $studio->turnaround_minutes);
                 $otherEnd = $otherStart->addMinutes($duration + $turnaround);
 
                 if ($start->lessThan($otherEnd) && $end->greaterThan($otherStart)) {
