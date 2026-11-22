@@ -1,0 +1,33 @@
+name: Temporary Movie Management Formatter
+on:
+  push:
+    paths:
+      - .github/workflows/movie-management-formatter.yml
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci
+      - name: Format new movie management files
+        run: |
+          composer lint
+          npm run check:fix
+          for spec in "PHP_CONTROLLER app/Http/Controllers/Admin/MovieManagementController.php" "PHP_TEST tests/Feature/Admin/MovieManagementTest.php" "VUE_INDEX resources/js/pages/admin/movies/Index.vue" "VUE_EDIT resources/js/pages/admin/movies/Edit.vue"; do
+            set -- $spec
+            echo "BEGIN_CINEM4_${1}"
+            base64 -w0 "$2"
+            echo
+            echo "END_CINEM4_${1}"
+          done

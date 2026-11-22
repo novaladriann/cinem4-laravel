@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\MovieManagementController;
 use App\Http\Controllers\Admin\TmdbMovieController;
 use App\Http\Controllers\MovieCatalogController;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,9 @@ Route::middleware(['auth', 'verified', 'can:manage-movies', 'throttle:30,1'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function (): void {
+        Route::get('/movies', [MovieManagementController::class, 'index'])->name('movies.index');
+        Route::get('/movies/{movie}/edit', [MovieManagementController::class, 'edit'])->name('movies.edit');
+        Route::patch('/movies/{movie}', [MovieManagementController::class, 'update'])->name('movies.update');
         Route::get('/movies/import', [TmdbMovieController::class, 'index'])->name('movies.import');
         Route::post('/movies/import/{tmdbId}', [TmdbMovieController::class, 'store'])
             ->whereNumber('tmdbId')

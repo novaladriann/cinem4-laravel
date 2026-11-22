@@ -35,6 +35,11 @@ const mainNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
     {
+        title: 'Kelola Film',
+        href: '/admin/movies',
+        icon: Film,
+    },
+    {
         title: 'Impor Film TMDB',
         href: '/admin/movies/import',
         icon: Search,

@@ -13,10 +13,11 @@ class MovieCatalogController extends Controller
         return Inertia::render('movies/Index', [
             'movies' => Movie::query()
                 ->where('is_active', true)
+                ->orderByDesc('is_featured')
                 ->orderByDesc('created_at')
                 ->simplePaginate(12, [
                     'id_movie', 'title', 'slug', 'genre', 'duration_minute',
-                    'status', 'poster', 'synopsis', 'release_date',
+                    'status', 'poster', 'synopsis', 'release_date', 'is_featured',
                 ]),
         ]);
     }

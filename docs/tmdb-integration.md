@@ -20,6 +20,7 @@ Jangan menyediakan endpoint publik untuk mengubah role. Pada production, provisi
 
 - /movies — katalog film aktif publik.
 - /admin/movies/import — pencarian, impor, dan feedback; memerlukan login, verifikasi email, role admin.
+- /admin/movies — daftar film dan pengelolaan status tayang, aktif/nonaktif, dan unggulan (admin terverifikasi).
 
 ## Ketentuan keamanan
 
