@@ -21,11 +21,13 @@ class TmdbService
                 'include_adult' => 'false',
             ]);
 
+            $rawResults = (array) ($data['results'] ?? []);
+
             /** @var array<int, array<string, mixed>> $results */
-            $results = (array) ($data['results'] ?? []);
+            $results = array_filter($rawResults, 'is_array');
 
             return collect($results)
-                ->filter(fn (mixed $movie): bool => is_array($movie) && is_int($movie['id'] ?? null) && ($movie['adult'] ?? false) === false)
+                ->filter(fn (array $movie): bool => is_int($movie['id'] ?? null) && ($movie['adult'] ?? false) === false)
                 ->take(20)
                 ->map(fn (array $movie): array => [
                     'id' => $movie['id'],
@@ -63,19 +65,22 @@ class TmdbService
             throw new RuntimeException('Metadata film dari TMDB tidak lengkap.');
         }
 
+        $rawGenres = (array) ($data['genres'] ?? []);
+
         /** @var array<int, array<string, mixed>> $genreData */
-        $genreData = (array) ($data['genres'] ?? []);
+        $genreData = array_filter($rawGenres, 'is_array');
         $genres = collect($genreData)
             ->pluck('name')
             ->filter(fn (mixed $name): bool => is_string($name) && $name !== '')
             ->take(4)
             ->implode(', ');
 
+        $rawVideoData = (array) data_get($data, 'videos.results', []);
+
         /** @var array<int, array<string, mixed>> $videoData */
-        $videoData = (array) data_get($data, 'videos.results', []);
+        $videoData = array_filter($rawVideoData, 'is_array');
         $video = collect($videoData)
-            ->first(fn (mixed $item): bool => is_array($item)
-                && ($item['site'] ?? null) === 'YouTube'
+            ->first(fn (array $item): bool => ($item['site'] ?? null) === 'YouTube'
                 && ($item['type'] ?? null) === 'Trailer'
                 && preg_match('/^[A-Za-z0-9_-]{11}$/', (string) ($item['key'] ?? '')) === 1);
 
