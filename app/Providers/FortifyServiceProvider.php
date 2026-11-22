@@ -3,45 +3,19 @@
 namespace App\Providers;
 
 /* @chisel-registration */
+
 use App\Actions\Fortify\CreateNewUser;
 /* @end-chisel-registration */
 use App\Actions\Fortify\ResetUserPassword;
-use App\Http\Responses\LoginResponse;
-/* @chisel-passkeys */
-use App\Http\Responses\PasskeyLoginResponse;
-/* @end-chisel-passkeys */
-/* @chisel-registration */
-use App\Http\Responses\RegisterResponse;
-/* @end-chisel-registration */
-/* @chisel-2fa */
-use App\Http\Responses\TwoFactorLoginResponse;
-/* @end-chisel-2fa */
-/* @chisel-email-verification */
-use App\Http\Responses\VerifyEmailResponse;
-/* @end-chisel-email-verification */
-use App\Models\TeamInvitation;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
-use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
-/* @chisel-registration */
-use Laravel\Fortify\Contracts\RegisterResponse as RegisterResponseContract;
-/* @end-chisel-registration */
-/* @chisel-2fa */
-use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
-/* @end-chisel-2fa */
-/* @chisel-email-verification */
-use Laravel\Fortify\Contracts\VerifyEmailResponse as VerifyEmailResponseContract;
-/* @end-chisel-email-verification */
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
-/* @chisel-passkeys */
-use Laravel\Passkeys\Contracts\PasskeyLoginResponse as PasskeyLoginResponseContract;
-
-/* @end-chisel-passkeys */
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -50,19 +24,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
-        /* @chisel-passkeys */
-        $this->app->singleton(PasskeyLoginResponseContract::class, PasskeyLoginResponse::class);
-        /* @end-chisel-passkeys */
-        /* @chisel-registration */
-        $this->app->singleton(RegisterResponseContract::class, RegisterResponse::class);
-        /* @end-chisel-registration */
-        /* @chisel-2fa */
-        $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
-        /* @end-chisel-2fa */
-        /* @chisel-email-verification */
-        $this->app->singleton(VerifyEmailResponseContract::class, VerifyEmailResponse::class);
-        /* @end-chisel-email-verification */
+        //
     }
 
     /**
@@ -94,12 +56,12 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/Login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'status' => $request->session()->get('status'),
-            'teamInvitation' => $this->teamInvitation($request),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
+            'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]));
 
         Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/ForgotPassword', [
@@ -113,8 +75,8 @@ class FortifyServiceProvider extends ServiceProvider
         /* @end-chisel-email-verification */
 
         /* @chisel-registration */
-        Fortify::registerView(fn (Request $request) => Inertia::render('auth/Register', [
-            'teamInvitation' => $this->teamInvitation($request),
+        Fortify::registerView(fn () => Inertia::render('auth/Register', [
+            'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]));
         /* @end-chisel-registration */
 
@@ -146,44 +108,10 @@ class FortifyServiceProvider extends ServiceProvider
 
         /* @chisel-passkeys */
         RateLimiter::for('passkeys', function (Request $request) {
-            $credentialId = $request->input('credential.id');
-
             return Limit::perMinute(10)->by(
-                ($credentialId ?: $request->session()->getId()).'|'.$request->ip(),
+                ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
         /* @end-chisel-passkeys */
-    }
-
-    /**
-     * Get the pending team invitation context for auth pages.
-     *
-     * @return array{code: string, teamName: string}|null
-     */
-    private function teamInvitation(Request $request): ?array
-    {
-        $invitationCode = $request->query('invitation');
-
-        if (! is_string($invitationCode)) {
-            return null;
-        }
-
-        $invitation = TeamInvitation::query()
-            ->with('team')
-            ->where('code', $invitationCode)
-            ->whereNull('accepted_at')
-            ->where(fn ($query) => $query
-                ->whereNull('expires_at')
-                ->orWhere('expires_at', '>=', now()))
-            ->first();
-
-        if (! $invitation) {
-            return null;
-        }
-
-        return [
-            'code' => $invitation->code,
-            'teamName' => $invitation->team->name,
-        ];
     }
 }

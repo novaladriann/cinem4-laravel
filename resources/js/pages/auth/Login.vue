@@ -2,10 +2,6 @@
 import { Form, Head } from '@inertiajs/vue3';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
-/* @chisel-passkeys */
-import PasskeyVerify from '@/components/PasskeyVerify.vue';
-/* @end-chisel-passkeys */
-import TeamInvitationAlert from '@/components/TeamInvitationAlert.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,7 +13,9 @@ import { register } from '@/routes';
 /* @end-chisel-registration */
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-import type { TeamInvitationContext } from '@/types';
+/* @chisel-passkeys */
+import PasskeyVerify from '@/components/PasskeyVerify.vue';
+/* @end-chisel-passkeys */
 
 defineOptions({
     layout: {
@@ -29,7 +27,6 @@ defineOptions({
 defineProps<{
     status?: string;
     canResetPassword: boolean;
-    teamInvitation?: TeamInvitationContext | null;
 }>();
 </script>
 
@@ -42,12 +39,6 @@ defineProps<{
     >
         {{ status }}
     </div>
-
-    <TeamInvitationAlert
-        v-if="teamInvitation"
-        :invitation="teamInvitation"
-        action="Log in"
-    />
 
     <!-- @chisel-passkeys -->
     <PasskeyVerify />
@@ -84,7 +75,7 @@ defineProps<{
                         class="text-sm"
                         :tabindex="5"
                     >
-                        Forgot password?
+                        Forgot your password?
                     </TextLink>
                 </div>
                 <PasswordInput
@@ -120,19 +111,7 @@ defineProps<{
         <!-- @chisel-registration -->
         <div class="text-center text-sm text-muted-foreground">
             Don't have an account?
-            <TextLink
-                :href="
-                    register({
-                        query: {
-                            invitation: teamInvitation?.code,
-                        },
-                    })
-                "
-                :tabindex="5"
-                data-test="register-link"
-            >
-                Sign up
-            </TextLink>
+            <TextLink :href="register()" :tabindex="5">Sign up</TextLink>
         </div>
         <!-- @end-chisel-registration -->
     </Form>
