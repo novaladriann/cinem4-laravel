@@ -82,7 +82,8 @@ class ScheduleManagementController extends Controller
                 ->where('id_cinema', $cinema->id_cinema)
                 ->where('is_active', true)
                 ->where('status', '!=', 'cancelled')
-                ->whereBetween('show_date', [$start->subDay()->toDateString(), $end->toDateString()])
+                ->whereDate('show_date', '>=', $start->subDay()->toDateString())
+                ->whereDate('show_date', '<=', $end->toDateString())
                 ->where(function ($query) use ($studio): void {
                     $query->where('id_studio', $studio->id_studio)
                         ->orWhere(function ($legacy) use ($studio): void {
