@@ -4,16 +4,16 @@ Dokumen ini merupakan **rencana**, bukan hasil migrasi atau hasil validasi skema
 
 ## Inventaris domain
 
-| Domain | Tabel existing yang disebut README lama | Prioritas |
-|---|---|---|
-| Akun pelanggan | `users` | Tinggi |
-| Admin dan hak akses | `admins` | Tinggi |
-| Film | `movies` | Awal |
-| Bioskop | `cinemas` | Awal |
-| Jadwal | `schedules` | Awal |
-| Pesanan dan kursi | `bookings`, `booking_seats` | Kritis |
-| Promosi | `promotions` | Sesudah booking dasar |
-| Pembayaran | `payment_logs` | Kritis |
+| Domain              | Tabel existing yang disebut README lama | Prioritas             |
+| ------------------- | --------------------------------------- | --------------------- |
+| Akun pelanggan      | `users`                                 | Tinggi                |
+| Admin dan hak akses | `admins`                                | Tinggi                |
+| Film                | `movies`                                | Awal                  |
+| Bioskop             | `cinemas`                               | Awal                  |
+| Jadwal              | `schedules`                             | Awal                  |
+| Pesanan dan kursi   | `bookings`, `booking_seats`             | Kritis                |
+| Promosi             | `promotions`                            | Sesudah booking dasar |
+| Pembayaran          | `payment_logs`                          | Kritis                |
 
 Nama tabel di atas perlu diverifikasi terhadap file SQL lengkap dan struktur database aktual.
 
