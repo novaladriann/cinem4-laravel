@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Schedule;
 use App\Services\SeatReservationService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,7 +32,7 @@ class BookingController extends Controller
         $booking->load(['seats', 'schedule.movie', 'schedule.cinema', 'schedule.studio']);
 
         // Expiration is derived at read time even if no cleanup worker has run.
-        $status = $booking->status === 'pending' && \Carbon\CarbonImmutable::parse((string) $booking->expires_at)->isPast()
+        $status = $booking->status === 'pending' && CarbonImmutable::parse((string) $booking->expires_at)->isPast()
             ? 'expired' : $booking->status;
 
         return Inertia::render('bookings/Show', [
