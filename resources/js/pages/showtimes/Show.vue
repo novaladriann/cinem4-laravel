@@ -42,7 +42,7 @@ function holdSeats(): void {
     form.post(`/showtimes/${props.schedule.id_schedule}/book`, {
         preserveScroll: true,
         onError: () =>
-            router.reload({ only: ['occupiedSeats'], preserveScroll: true }),
+            router.reload({ only: ['occupiedSeats'] }),
     });
 }
 </script>

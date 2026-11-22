@@ -8,6 +8,7 @@ import {
     FolderGit2,
     LayoutGrid,
     Search,
+    Ticket,
 } from '@lucide/vue';
 import { usePage } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
