@@ -435,7 +435,6 @@ class MidtransSandboxTest extends TestCase
         $orderId = $booking->midtrans_order_id;
         $booking->update(['midtrans_redirect_url' => null, 'midtrans_started_at' => now()->subMinutes(20)]);
 
-        Http::fake([]);
         $this->from(route('bookings.show', $booking))
             ->post(route('payments.start', $booking))
             ->assertSessionHasErrors('payment');
