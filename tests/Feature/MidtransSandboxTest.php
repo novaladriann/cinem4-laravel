@@ -497,5 +497,4 @@ class MidtransSandboxTest extends TestCase
         $this->assertDatabaseCount('tickets', 1);
         $this->assertDatabaseCount('seat_locks', 2);
     }
-
 }

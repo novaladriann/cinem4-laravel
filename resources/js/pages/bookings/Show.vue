@@ -168,7 +168,11 @@ function cancelBooking(): void {
                         class="mt-4 min-h-11 w-full rounded-lg bg-amber-400 px-5 font-semibold text-slate-950 hover:bg-amber-300"
                         @click="startPayment"
                     >
-                        {{ booking.midtrans_order_id ? 'Coba pulihkan checkout Sandbox' : 'Bayar dengan Midtrans Sandbox' }}
+                        {{
+                            booking.midtrans_order_id
+                                ? 'Coba pulihkan checkout Sandbox'
+                                : 'Bayar dengan Midtrans Sandbox'
+                        }}
                     </button>
                     <button
                         v-if="booking.midtrans_order_id"
