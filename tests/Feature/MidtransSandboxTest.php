@@ -349,8 +349,6 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame('paid', $booking->fresh()->status);
         $this->get(route('tickets.qr', $booking))->assertOk();
 
-;
-
         $this->post(route('payments.refresh', $booking))
             ->assertRedirect(route('bookings.show', $booking));
 
