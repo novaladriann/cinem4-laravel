@@ -68,13 +68,22 @@ defineProps<{
                 <p
                     class="mt-5 max-w-2xl text-base leading-relaxed text-slate-400"
                 >
-                    Jelajahi pilihan film CINEM4 dan pilih jadwal untuk menahan kursi sementara. Pembayaran online belum tersedia.
+                    Jelajahi pilihan film CINEM4 dan pilih jadwal untuk menahan
+                    kursi sementara. Pembayaran online belum tersedia.
                 </p>
             </section>
 
             <div class="mb-10 flex flex-wrap gap-3">
-                <Link href="/showtimes" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-amber-400 px-5 text-sm font-semibold text-slate-950 hover:bg-amber-300">Lihat jadwal tayang <ArrowRight class="size-4" /></Link>
-                <Link href="/my-bookings" class="inline-flex min-h-11 items-center rounded-lg border border-white/20 px-5 text-sm font-medium hover:border-amber-400">Reservasi saya</Link>
+                <Link
+                    href="/showtimes"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-amber-400 px-5 text-sm font-semibold text-slate-950 hover:bg-amber-300"
+                    >Lihat jadwal tayang <ArrowRight class="size-4"
+                /></Link>
+                <Link
+                    href="/my-bookings"
+                    class="inline-flex min-h-11 items-center rounded-lg border border-white/20 px-5 text-sm font-medium hover:border-amber-400"
+                    >Reservasi saya</Link
+                >
             </div>
 
             <section aria-labelledby="movie-list-heading" class="pb-14">

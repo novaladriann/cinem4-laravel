@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Booking;
 use App\Models\Cinema;
 use App\Models\Movie;
 use App\Models\Schedule;
@@ -180,6 +181,7 @@ class CinemaScheduleManagementTest extends TestCase
             'is_active' => false,
         ]);
     }
+
     public function test_cancelling_a_showtime_releases_pending_reservations(): void
     {
         $catalog = $this->catalog();
@@ -207,7 +209,7 @@ class CinemaScheduleManagementTest extends TestCase
         $this->actingAs($admin)->post(route('admin.schedules.store'), $this->show($catalog));
         $schedule = Schedule::query()->firstOrFail();
         $this->actingAs($customer)->post(route('bookings.store', $schedule), ['seats' => [5]]);
-        \App\Models\Booking::query()->firstOrFail()->update(['status' => 'paid', 'expires_at' => null]);
+        Booking::query()->firstOrFail()->update(['status' => 'paid', 'expires_at' => null]);
 
         $this->actingAs($admin)->from(route('admin.schedules.index'))
             ->patch(route('admin.schedules.cancel', $schedule))
@@ -216,5 +218,4 @@ class CinemaScheduleManagementTest extends TestCase
         $this->assertSame('open', $schedule->fresh()->status);
         $this->assertDatabaseCount('seat_locks', 1);
     }
-
 }

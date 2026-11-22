@@ -7,7 +7,6 @@ use App\Models\Schedule;
 use App\Services\SeatReservationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
