@@ -21,7 +21,8 @@ class MidtransSandboxTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config()->set('services.midtrans.sandbox_server_key', 'sandbox-test-key');
+        config()->set('services.midtrans.sandbox_server_key', 'sandbox-test-server-key');
+        config()->set('services.midtrans.sandbox_signature_secret_key', 'sandbox-test-signature-secret');
         Http::preventStrayRequests();
     }
 
@@ -122,7 +123,12 @@ class MidtransSandboxTest extends TestCase
             ]),
         ]);
 
-        $notification['signature_key'] = hash('sha512', $booking->midtrans_order_id.'200'.'90000.00'.'sandbox-test-key');
+        // An API Server Key is no longer accepted as a notification signing secret.
+        $notification['signature_key'] = hash('sha512', $booking->midtrans_order_id.'200'.'90000.00'.'sandbox-test-server-key');
+        $this->postJson(route('midtrans.webhook'), $notification)->assertForbidden();
+        $this->assertSame('pending', $booking->fresh()->status);
+
+        $notification['signature_key'] = hash('sha512', $booking->midtrans_order_id.'200'.'90000.00'.'sandbox-test-signature-secret');
 
         $this->postJson(route('midtrans.webhook'), $notification)->assertOk();
         $this->postJson(route('midtrans.webhook'), $notification)->assertOk();

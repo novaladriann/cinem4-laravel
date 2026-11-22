@@ -30,6 +30,7 @@ return [
 
     'midtrans' => [
         'sandbox_server_key' => env('MIDTRANS_SANDBOX_SERVER_KEY'),
+        'sandbox_signature_secret_key' => env('MIDTRANS_SANDBOX_SIGNATURE_SECRET_KEY'),
     ],
 
     'tmdb' => [

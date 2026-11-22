@@ -95,7 +95,7 @@ class MidtransSandboxService
             abort(400, 'Notifikasi pembayaran tidak lengkap.');
         }
 
-        if (! hash_equals(hash('sha512', $orderId.$code.$amount.$this->serverKey()), $signature)) {
+        if (! hash_equals(hash('sha512', $orderId.$code.$amount.$this->signatureSecretKey()), $signature)) {
             abort(403, 'Tanda tangan pembayaran tidak valid.');
         }
 
@@ -208,6 +208,17 @@ class MidtransSandboxService
 
         if (! is_string($key) || trim($key) === '') {
             throw ValidationException::withMessages(['payment' => 'Midtrans Sandbox belum dikonfigurasi.']);
+        }
+
+        return $key;
+    }
+
+    private function signatureSecretKey(): string
+    {
+        $key = config('services.midtrans.sandbox_signature_secret_key');
+
+        if (! is_string($key) || trim($key) === '') {
+            abort(503, 'Kredensial tanda tangan Midtrans Sandbox belum dikonfigurasi.');
         }
 
         return $key;

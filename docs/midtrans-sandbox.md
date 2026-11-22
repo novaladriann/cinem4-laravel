@@ -1,21 +1,22 @@
 # Midtrans Sandbox untuk CINEM4 (belum produksi)
 
-Integrasi menggunakan **Snap redirect hosted checkout**, sehingga aplikasi Laravel tidak menerima detail kartu pelanggan. Hanya **Sandbox Server Key** yang dibutuhkan pada server Laravel. **Jangan memakai production key**.
+Integrasi menggunakan **Snap redirect hosted checkout**, sehingga aplikasi Laravel tidak menerima detail kartu pelanggan. Untuk server Laravel dibutuhkan **Sandbox Server Key** (API) dan **Sandbox Signature Secret Key** (autentikasi webhook). Client Key tidak digunakan oleh Snap Redirect. **Jangan memakai production key**.
 
 ## Konfigurasi
 
 1. Buat/masuk akun [Midtrans Sandbox](https://dashboard.sandbox.midtrans.com/). Tidak ada pembayaran riil dalam Sandbox.
-2. Temukan `Server Key` pada pengaturan akses API Sandbox, lalu tambahkan ke `.env` lokal: `MIDTRANS_SANDBOX_SERVER_KEY=...`.
-3. Jalankan `php artisan config:clear`, `php artisan migrate`, dan `php artisan test`.
-4. Jalankan `composer run dev` lalu login sebagai pelanggan.
-5. Buka `/showtimes`, tahan kursi, kemudian buka detail reservasi dan klik **Bayar dengan Midtrans Sandbox**. Link menuju checkout resmi `app.sandbox.midtrans.com`.
-6. Untuk menyinkronkan hasil checkout, kembali ke reservasi lalu klik **Periksa Status Pembayaran**. Status berasal dari Get Status API Midtrans, **bukan dari parameter URL browser**.
+2. Buka **Settings > Access Keys** dalam mode Sandbox. Buat Server Key untuk autentikasi API lalu ambil Signature Secret Key untuk verifikasi webhook. Kedua kunci wajib berasal dari merchant Sandbox yang sama.
+3. Simpan keduanya secara terpisah di `.env` lokal: `MIDTRANS_SANDBOX_SERVER_KEY=...` dan `MIDTRANS_SANDBOX_SIGNATURE_SECRET_KEY=...`. Jangan gunakan Client Key untuk kedua variabel ini.
+4. Jalankan `php artisan config:clear`, `php artisan migrate`, dan `php artisan test`.
+5. Jalankan `composer run dev` lalu login sebagai pelanggan.
+6. Buka `/showtimes`, tahan kursi, kemudian buka detail reservasi dan klik **Bayar dengan Midtrans Sandbox**. Link menuju checkout resmi `app.sandbox.midtrans.com`.
+7. Untuk menyinkronkan hasil checkout, kembali ke reservasi lalu klik **Periksa Status Pembayaran**. Status berasal dari Get Status API Midtrans, **bukan dari parameter URL browser**.
 
 ## Webhook
 
-Endpoint: `POST /webhooks/midtrans` (tanpa CSRF, tetapi tanda tangan SHA512 diperiksa dan notifikasi dikonfirmasi lagi memakai Get Status API). Daftarkan Notification URL tersebut pada dashboard Sandbox ketika CINEM4 memiliki alamat HTTPS publik.
+Endpoint: `POST /webhooks/midtrans` (tanpa CSRF, tetapi tanda tangan SHA512 diverifikasi menggunakan **Signature Secret Key** (bukan Server Key) dan notifikasi dikonfirmasi lagi memakai Get Status API). Daftarkan Notification URL tersebut pada dashboard Sandbox ketika CINEM4 memiliki alamat HTTPS publik.
 
-Alamat `127.0.0.1` atau `localhost` **tidak dapat dijangkau langsung oleh server Midtrans**. Untuk pengujian webhook gunakan tunnel HTTPS yang dipercaya; jangan membagikan token tunnel, server key, atau data pelanggan. Tanpa webhook, pelanggan dapat menekan tombol **Periksa Status Pembayaran** setelah transaksi.
+Alamat `127.0.0.1` atau `localhost` **tidak dapat dijangkau langsung oleh server Midtrans**. Untuk pengujian webhook gunakan tunnel HTTPS yang dipercaya; jangan membagikan token tunnel, Server Key, Signature Secret Key, atau data pelanggan. Tanpa webhook, pelanggan dapat menekan tombol **Periksa Status Pembayaran** setelah transaksi.
 
 ## Perilaku reservasi
 
