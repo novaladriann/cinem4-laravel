@@ -41,8 +41,7 @@ function toggleSeat(seat: number): void {
 function holdSeats(): void {
     form.post(`/showtimes/${props.schedule.id_schedule}/book`, {
         preserveScroll: true,
-        onError: () =>
-            router.reload({ only: ['occupiedSeats'] }),
+        onError: () => router.reload({ only: ['occupiedSeats'] }),
     });
 }
 </script>
