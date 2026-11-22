@@ -33,11 +33,13 @@ class Schedule extends Model
         ];
     }
 
+    /** @return BelongsTo<Movie, $this> */
     public function movie(): BelongsTo
     {
         return $this->belongsTo(Movie::class, 'id_movie', 'id_movie');
     }
 
+    /** @return BelongsTo<Cinema, $this> */
     public function cinema(): BelongsTo
     {
         return $this->belongsTo(Cinema::class, 'id_cinema', 'id_cinema');

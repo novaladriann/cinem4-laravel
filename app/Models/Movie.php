@@ -41,6 +41,7 @@ class Movie extends Model
         ];
     }
 
+    /** @return HasMany<Schedule, $this> */
     public function schedules(): HasMany
     {
         return $this->hasMany(Schedule::class, 'id_movie', 'id_movie');
