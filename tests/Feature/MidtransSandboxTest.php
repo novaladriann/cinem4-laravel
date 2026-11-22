@@ -217,6 +217,7 @@ class MidtransSandboxTest extends TestCase
         $this->assertNull($booking->fresh()->midtrans_order_id);
         Http::assertNothingSent();
     }
+
     public function test_snap_checkout_sets_finish_callback_to_owned_booking(): void
     {
         $booking = $this->pendingBooking();
@@ -318,5 +319,4 @@ class MidtransSandboxTest extends TestCase
         $this->assertSame('pending', $booking->fresh()->status);
         $this->assertDatabaseCount('tickets', 0);
     }
-
 }
