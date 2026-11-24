@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
-    ArrowLeft,
     ArrowRight,
     Calendar,
     CalendarDays,
@@ -140,6 +139,7 @@ const activeMovieIndex = ref<number>(0);
 const selectedScheduleId = ref<number | null>(
     props.initialScheduleId ?? props.schedules[0]?.id_schedule ?? null,
 );
+const scrollY = ref<number>(0);
 
 // 2-Stage Seat Selection state
 const hasPickedTime = ref<boolean>(props.initialTimePicked);
@@ -194,8 +194,8 @@ const carouselTrackRef = ref<HTMLElement | null>(null);
 const nextRingCircleRef = ref<SVGCircleElement | null>(null);
 const prevRingCircleRef = ref<SVGCircleElement | null>(null);
 
-// Refs: Detail mode elements
-const detailStageRef = ref<HTMLElement | null>(null);
+// Refs: Unified Film (Detail + Scrollable Booking) elements
+const filmStageRef = ref<HTMLElement | null>(null);
 const detailTitleRef = ref<HTMLElement | null>(null);
 const detailSpecsRef = ref<HTMLElement | null>(null);
 const detailPlayBtnRef = ref<HTMLElement | null>(null);
@@ -204,8 +204,7 @@ const detailStoryRef = ref<HTMLElement | null>(null);
 const detailOrderBtnRef = ref<HTMLElement | null>(null);
 const castTrackRef = ref<HTMLElement | null>(null);
 
-// Refs: Booking mode elements
-const bookingStageRef = ref<HTMLElement | null>(null);
+const bookingSectionRef = ref<HTMLElement | null>(null);
 const ticketCardRef = ref<HTMLElement | null>(null);
 const screenArcRef = ref<HTMLElement | null>(null);
 const seatGridRef = ref<HTMLElement | null>(null);
@@ -218,6 +217,13 @@ const prefersReducedMotion = () =>
 
 const money = (value: string | number) =>
     `Rp ${Math.round(Number(value)).toLocaleString('id-ID')}`;
+
+// Scroll-reactive backdrop opacity: fades smoothly into #121212 as user scrolls down to seat selection
+const backdropImageOpacity = computed(() => {
+    if (mode.value === 'schedule') return 0.6;
+    const fadeFactor = Math.min(1, Math.max(0, scrollY.value / 540));
+    return Number((0.48 - fadeFactor * 0.4).toFixed(3));
+});
 
 const todayIso = computed(() =>
     new Intl.DateTimeFormat('en-CA', {
@@ -663,7 +669,6 @@ watch(
     { immediate: true },
 );
 
-// Initialize activeMovieIndex when initialScheduleId is given
 watch(
     () => props.initialScheduleId,
     (id) => {
@@ -695,7 +700,6 @@ watch(movieGroups, (groups) => {
     }
 });
 
-// Live seat availability sync without page reload
 async function refreshOccupiedSeats(scheduleId: number): Promise<void> {
     loadingSeats.value = true;
     try {
@@ -1014,53 +1018,90 @@ function selectMovieFromCard(targetIdx: number): void {
 }
 
 /**
- * TRANSITION 1: Schedule -> Detail (Zero-Flicker, Backdrop stays still, Title transforms smoothly bottom-left -> top-left)
+ * Scroll smoothly down to the ticket & seat selection section within the unified film page
  */
-async function enterDetailMode(pushHistory = true): Promise<void> {
-    if (isModeTransitioning.value || mode.value === 'detail') return;
+function scrollToBookingSection(instant = false): void {
+    nextTick(() => {
+        bookingSectionRef.value?.scrollIntoView({
+            behavior: instant || prefersReducedMotion() ? 'auto' : 'smooth',
+            block: 'start',
+        });
+    });
+}
+
+/**
+ * Opens unified scrollable Film Page (Detail top + Seat Selection bottom).
+ * - When `scrollToSeats === false` ('More'): Title FLIPs smoothly from bottom-left to top-left at scrollY=0.
+ * - When `scrollToSeats === true` ('Book a session'): Opens unified page and immediately smooth-scrolls to #booking-section.
+ */
+async function enterFilmPage(
+    scrollToSeats = false,
+    prePickedTime = false,
+    pushHistory = true,
+): Promise<void> {
+    if (isModeTransitioning.value) return;
     const schedId = activeSchedule.value?.id_schedule ?? null;
+    const targetMode: StageMode = scrollToSeats ? 'booking' : 'detail';
+
+    if (schedId) {
+        void refreshOccupiedSeats(schedId);
+    }
 
     if (prefersReducedMotion()) {
-        mode.value = 'detail';
+        form.seats = [];
+        hasPickedTime.value = prePickedTime;
+        dateStripCollapsed.value = prePickedTime;
+        ticketCardExpanded.value = prePickedTime;
+        mode.value = targetMode;
         castStartIndex.value = 0;
-        if (pushHistory) syncHistoryUrl('detail', schedId);
+        if (pushHistory) syncHistoryUrl(targetMode, schedId);
+        if (scrollToSeats) scrollToBookingSection(true);
+        else window.scrollTo({ top: 0, behavior: 'auto' });
         return;
     }
 
     isModeTransitioning.value = true;
-    const oldRect = scheduleTitleRef.value?.getBoundingClientRect() ?? null;
+    const oldRect =
+        !scrollToSeats && mode.value === 'schedule'
+            ? (scheduleTitleRef.value?.getBoundingClientRect() ?? null)
+            : null;
 
-    // Fade out schedule numbers, Tomorrow carousel, pills, and CTAs while keeping backdrop stationary
-    const fadeTargets = [
-        heroNumberWrapRef.value,
-        scheduleDayRef.value,
-        scheduleMetaRef.value,
-        schedulePillsTrackRef.value,
-        heroCtaRowRef.value,
-        heroNavControlsRef.value,
-        carouselTrackRef.value,
-    ].filter(Boolean);
+    if (mode.value === 'schedule') {
+        const fadeTargets = [
+            heroNumberWrapRef.value,
+            scheduleDayRef.value,
+            scheduleMetaRef.value,
+            schedulePillsTrackRef.value,
+            heroCtaRowRef.value,
+            heroNavControlsRef.value,
+            carouselTrackRef.value,
+        ].filter(Boolean);
 
-    if (fadeTargets.length > 0 && mode.value === 'schedule') {
-        await new Promise<void>((resolve) => {
-            gsap.to(fadeTargets, {
-                opacity: 0,
-                duration: 0.24,
-                ease: 'power2.out',
-                onComplete: resolve,
+        if (fadeTargets.length > 0) {
+            await new Promise<void>((resolve) => {
+                gsap.to(fadeTargets, {
+                    opacity: 0,
+                    duration: 0.22,
+                    ease: 'power2.out',
+                    onComplete: resolve,
+                });
             });
-        });
+        }
     }
 
-    mode.value = 'detail';
+    form.seats = [];
+    hasPickedTime.value = prePickedTime;
+    dateStripCollapsed.value = prePickedTime;
+    ticketCardExpanded.value = prePickedTime;
+    mode.value = targetMode;
     castStartIndex.value = 0;
-    if (pushHistory) syncHistoryUrl('detail', schedId);
+    if (pushHistory) syncHistoryUrl(targetMode, schedId);
 
     await nextTick();
     window.scrollTo({ top: 0, behavior: 'auto' });
 
     const newTitleEl = detailTitleRef.value;
-    if (newTitleEl && oldRect) {
+    if (newTitleEl && oldRect && !scrollToSeats) {
         const newRect = newTitleEl.getBoundingClientRect();
         const dx = oldRect.left - newRect.left;
         const dy = oldRect.top - newRect.top;
@@ -1072,14 +1113,12 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
         newTitleEl.style.transition = 'none';
         newTitleEl.style.transformOrigin = 'top left';
         newTitleEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
-        // Force reflow
         void newTitleEl.offsetHeight;
         newTitleEl.style.transition =
             'transform 500ms cubic-bezier(0.22, 1, 0.36, 1)';
         newTitleEl.style.transform = 'translate3d(0, 0, 0) scale(1)';
     }
 
-    // Stagger metadata table, Play button, Starring portraits, Storyline & Order button
     const tl = gsap.timeline({
         onComplete: () => {
             isModeTransitioning.value = false;
@@ -1099,11 +1138,11 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
             {
                 y: 0,
                 opacity: 1,
-                duration: 0.44,
-                stagger: 0.04,
+                duration: 0.42,
+                stagger: 0.035,
                 ease: 'power3.out',
             },
-            0.22,
+            0.18,
         );
     }
 
@@ -1111,8 +1150,8 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
         tl.fromTo(
             detailPlayBtnRef.value,
             { scale: 0.65, opacity: 0 },
-            { scale: 1, opacity: 1, duration: 0.48, ease: 'back.out(1.7)' },
-            0.24,
+            { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(1.7)' },
+            0.2,
         );
     }
 
@@ -1124,11 +1163,11 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
             {
                 y: 0,
                 opacity: 1,
-                duration: 0.48,
-                stagger: 0.05,
+                duration: 0.45,
+                stagger: 0.045,
                 ease: 'power3.out',
             },
-            0.25,
+            0.2,
         );
     }
 
@@ -1136,8 +1175,8 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
         tl.fromTo(
             detailStoryRef.value,
             { y: 18, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.46, ease: 'power3.out' },
-            0.3,
+            { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' },
+            0.25,
         );
     }
 
@@ -1145,121 +1184,18 @@ async function enterDetailMode(pushHistory = true): Promise<void> {
         tl.fromTo(
             detailOrderBtnRef.value,
             { y: 16, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.42, ease: 'power3.out' },
-            0.34,
+            { y: 0, opacity: 1, duration: 0.4, ease: 'power3.out' },
+            0.28,
         );
+    }
+
+    if (scrollToSeats) {
+        setTimeout(() => {
+            scrollToBookingSection(false);
+        }, 90);
     }
 }
 
-/**
- * TRANSITION 2: Schedule / Detail -> Booking (Upward glide behind sticky navbar -> 2-Stage Seat Selection)
- */
-async function enterBookingMode(
-    targetScheduleId: number | null = null,
-    prePickedTime = false,
-    pushHistory = true,
-): Promise<void> {
-    if (isModeTransitioning.value) return;
-    const resolvedId =
-        targetScheduleId ?? activeSchedule.value?.id_schedule ?? null;
-
-    if (resolvedId) {
-        selectedScheduleId.value = resolvedId;
-        const groupIdx = movieGroups.value.findIndex((g) =>
-            g.schedules.some((s) => s.id_schedule === resolvedId),
-        );
-        if (groupIdx >= 0) {
-            activeMovieIndex.value = groupIdx;
-        }
-    }
-
-    // Start live seat fetch in parallel with transition
-    if (resolvedId) {
-        void refreshOccupiedSeats(resolvedId);
-    }
-
-    if (prefersReducedMotion()) {
-        form.seats = [];
-        hasPickedTime.value = prePickedTime;
-        dateStripCollapsed.value = prePickedTime;
-        ticketCardExpanded.value = prePickedTime;
-        mode.value = 'booking';
-        if (pushHistory) syncHistoryUrl('booking', resolvedId);
-        return;
-    }
-
-    isModeTransitioning.value = true;
-    const outgoingEl =
-        mode.value === 'detail'
-            ? detailStageRef.value
-            : scheduleStageRef.value;
-
-    if (outgoingEl) {
-        await new Promise<void>((resolve) => {
-            gsap.to(outgoingEl, {
-                y: -48,
-                opacity: 0,
-                duration: 0.34,
-                ease: 'power2.in',
-                onComplete: resolve,
-            });
-        });
-    }
-
-    form.seats = [];
-    hasPickedTime.value = prePickedTime;
-    dateStripCollapsed.value = prePickedTime;
-    ticketCardExpanded.value = prePickedTime;
-    mode.value = 'booking';
-    if (pushHistory) syncHistoryUrl('booking', resolvedId);
-
-    await nextTick();
-    window.scrollTo({ top: 0, behavior: 'auto' });
-
-    const tl = gsap.timeline({
-        onComplete: () => {
-            isModeTransitioning.value = false;
-        },
-    });
-
-    if (bookingStageRef.value) {
-        tl.fromTo(
-            bookingStageRef.value,
-            { y: 28, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.48, ease: 'power3.out' },
-            0,
-        );
-    }
-
-    if (screenArcRef.value) {
-        tl.fromTo(
-            screenArcRef.value,
-            { scaleX: 0.78, opacity: 0 },
-            { scaleX: 1, opacity: 1, duration: 0.65, ease: 'expo.out' },
-            0.08,
-        );
-    }
-
-    if (seatGridRef.value) {
-        const rows = seatGridRef.value.querySelectorAll('[data-seat-row-el]');
-        tl.fromTo(
-            rows,
-            { y: 14, opacity: 0 },
-            {
-                y: 0,
-                opacity: 1,
-                duration: 0.48,
-                stagger: 0.04,
-                ease: 'power3.out',
-            },
-            0.12,
-        );
-    }
-}
-
-/**
- * Return smoothly to Schedule mode without page reload
- */
 async function enterScheduleMode(pushHistory = true): Promise<void> {
     if (!props.canReturnToSchedule) {
         router.visit('/showtimes');
@@ -1270,21 +1206,17 @@ async function enterScheduleMode(pushHistory = true): Promise<void> {
     if (prefersReducedMotion()) {
         mode.value = 'schedule';
         if (pushHistory) syncHistoryUrl('schedule', null);
+        window.scrollTo({ top: 0, behavior: 'auto' });
         return;
     }
 
     isModeTransitioning.value = true;
-    const outgoingEl =
-        mode.value === 'detail'
-            ? detailStageRef.value
-            : bookingStageRef.value;
-
-    if (outgoingEl) {
+    if (filmStageRef.value) {
         await new Promise<void>((resolve) => {
-            gsap.to(outgoingEl, {
+            gsap.to(filmStageRef.value, {
                 y: 20,
                 opacity: 0,
-                duration: 0.25,
+                duration: 0.24,
                 ease: 'power2.in',
                 onComplete: resolve,
             });
@@ -1304,7 +1236,7 @@ async function enterScheduleMode(pushHistory = true): Promise<void> {
             {
                 opacity: 1,
                 y: 0,
-                duration: 0.45,
+                duration: 0.42,
                 ease: 'power3.out',
                 onComplete: () => {
                     isModeTransitioning.value = false;
@@ -1323,10 +1255,6 @@ function handleLogoClick(event: MouseEvent): void {
     }
 }
 
-/**
- * Stage 1 -> Stage 2 of Booking: Clicking a Time pill collapses Date strip upward,
- * moves Time to top-left, expands Tickets card, and activates the Seat Map!
- */
 function pickBookingDate(firstScheduleId: number | null): void {
     if (!firstScheduleId) return;
     selectedScheduleId.value = firstScheduleId;
@@ -1451,6 +1379,11 @@ function resetFilters(): void {
     searchQuery.value = '';
 }
 
+function handleWindowScroll(): void {
+    if (typeof window === 'undefined') return;
+    scrollY.value = window.scrollY;
+}
+
 function handleKeydown(e: KeyboardEvent): void {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -1485,9 +1418,9 @@ function handlePopstate(e: PopStateEvent): void {
     if (st.astralMode === 'schedule') {
         void enterScheduleMode(false);
     } else if (st.astralMode === 'detail') {
-        void enterDetailMode(false);
+        void enterFilmPage(false, false, false);
     } else if (st.astralMode === 'booking') {
-        void enterBookingMode(st.scheduleId ?? null, false, false);
+        void enterFilmPage(true, false, false);
     }
 }
 
@@ -1497,11 +1430,20 @@ onMounted(() => {
             activeMovie.value.schedules[0]?.id_schedule ?? null;
     }
     syncHistoryUrl(mode.value, selectedScheduleId.value, true);
+    handleWindowScroll();
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('popstate', handlePopstate);
+
+    if (props.initialMode === 'booking') {
+        setTimeout(() => {
+            scrollToBookingSection(true);
+        }, 80);
+    }
 });
 
 onBeforeUnmount(() => {
+    window.removeEventListener('scroll', handleWindowScroll);
     window.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('popstate', handlePopstate);
     if (activeTimeline) {
@@ -1555,7 +1497,7 @@ onBeforeUnmount(() => {
             </defs>
         </svg>
 
-        <!-- PERSISTENT ZERO-FLICKER BACKDROP STAGE (Never unmounts across schedule -> detail -> booking) -->
+        <!-- PERSISTENT ZERO-FLICKER BACKDROP STAGE (Smoothly fades into #121212 on scroll) -->
         <div
             class="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#121212]"
         >
@@ -1586,25 +1528,16 @@ onBeforeUnmount(() => {
                         v-if="activeHeroImage"
                         :src="activeHeroImage"
                         :alt="activeMovie?.title ?? ''"
-                        :class="[
-                            'h-full w-full object-cover object-center transition-opacity duration-700 ease-out',
-                            mode === 'schedule'
-                                ? 'opacity-60'
-                                : mode === 'detail'
-                                  ? 'opacity-45'
-                                  : 'opacity-15',
-                        ]"
+                        :style="{ opacity: backdropImageOpacity }"
+                        class="h-full w-full object-cover object-center transition-opacity duration-300 ease-out"
                     />
                     <div v-else class="h-full w-full bg-[#121212]" />
                 </div>
             </div>
 
-            <!-- Adaptive Vignette Layer (Smoothly deepens into #121212 without remounting) -->
+            <!-- Adaptive Vignettes blending cleanly into #121212 -->
             <div
-                :class="[
-                    'absolute inset-0 transition-opacity duration-700 ease-out',
-                    mode === 'booking' ? 'opacity-95' : 'opacity-100',
-                ]"
+                class="absolute inset-0"
                 style="
                     background: linear-gradient(
                         90deg,
@@ -1625,32 +1558,23 @@ onBeforeUnmount(() => {
                     );
                 "
             />
-            <!-- Extra dark wash for Booking Mode -->
-            <div
-                :class="[
-                    'absolute inset-0 bg-[#121212] transition-opacity duration-700 ease-out',
-                    mode === 'booking' ? 'opacity-78' : 'opacity-0',
-                ]"
-            />
         </div>
 
-        <!-- STICKY TOP NAVBAR (Cinema location dropdown sits here next to user profile) -->
-        <div class="sticky top-0 z-40">
-            <CinemaNav
-                v-model:selected-cinema="selectedCinema"
-                v-model:search-query="searchQuery"
-                :cinemas="cinemaOptions"
-                :active-cinema-display="activeCinemaNavbarLabel"
-                :show-search="mode === 'schedule'"
-                :transparent="true"
-                @logo-click="handleLogoClick"
-            />
-        </div>
+        <!-- FIXED TOP NAVBAR -->
+        <CinemaNav
+            v-model:selected-cinema="selectedCinema"
+            v-model:search-query="searchQuery"
+            :cinemas="cinemaOptions"
+            :active-cinema-display="activeCinemaNavbarLabel"
+            :show-search="mode === 'schedule'"
+            :transparent="true"
+            @logo-click="handleLogoClick"
+        />
 
         <!-- EMPTY STATE: No active schedules in database -->
         <main
             v-if="schedules.length === 0"
-            class="relative z-10 mx-auto flex min-h-[75vh] max-w-2xl flex-col items-center justify-center px-6 text-center"
+            class="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 pt-20 text-center"
         >
             <div
                 class="flex size-16 items-center justify-center rounded-2xl border border-white/15 bg-[#18191d]"
@@ -1678,7 +1602,7 @@ onBeforeUnmount(() => {
         <!-- EMPTY STATE: Filters returned 0 results -->
         <main
             v-else-if="movieGroups.length === 0"
-            class="relative z-10 mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center px-6 text-center"
+            class="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 pt-20 text-center"
         >
             <div
                 class="flex size-16 items-center justify-center rounded-2xl border border-white/15 bg-[#18191d]"
@@ -1704,7 +1628,7 @@ onBeforeUnmount(() => {
         <!-- STAGE MODES -->
         <template v-else-if="activeMovie && activeSchedule">
             <!-- ========================================================= -->
-            <!-- MODE 1: SCHEDULE CAROUSEL (Today / Tomorrow Astral Stage) -->
+            <!-- MODE 1: CLEAN SINGLE-SCREEN HERO CAROUSEL                 -->
             <!-- ========================================================= -->
             <div
                 v-if="mode === 'schedule'"
@@ -1712,7 +1636,7 @@ onBeforeUnmount(() => {
                 class="relative z-10"
             >
                 <section
-                    class="mx-auto flex min-h-[calc(100svh-5rem)] max-w-[1400px] flex-col justify-between px-5 pt-2 pb-10 sm:px-8 lg:px-12 lg:pt-6 lg:pb-12"
+                    class="mx-auto flex min-h-screen max-w-[1400px] flex-col justify-between px-5 pt-24 pb-10 sm:px-8 lg:px-12 lg:pt-28 lg:pb-12"
                 >
                     <!-- Interactive Date Filter Strip -->
                     <div
@@ -1765,7 +1689,6 @@ onBeforeUnmount(() => {
                     >
                         <!-- Left Column -->
                         <div class="max-w-xl">
-                            <!-- Vertical Timeline Marker -->
                             <div class="relative mb-5 pl-4">
                                 <span
                                     class="absolute top-1.5 left-0 size-2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]"
@@ -1964,7 +1887,7 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
 
-                            <!-- Primary CTA Row: Book a session / Pilih Kursi + More -->
+                            <!-- Primary CTA Row: Book a session + More -->
                             <div
                                 ref="heroCtaRowRef"
                                 class="mt-8 flex flex-wrap items-center gap-3.5"
@@ -1972,12 +1895,7 @@ onBeforeUnmount(() => {
                                 <button
                                     type="button"
                                     class="inline-flex min-h-11 items-center justify-center gap-2.5 rounded bg-[#f5b82e] px-6 text-xs font-bold tracking-wide text-[#121212] shadow-[0_8px_28px_rgba(245,184,46,0.28)] transition hover:bg-[#ffc542] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]"
-                                    @click="
-                                        enterBookingMode(
-                                            activeSchedule.id_schedule,
-                                            false,
-                                        )
-                                    "
+                                    @click="enterFilmPage(true, false, true)"
                                 >
                                     <Ticket class="size-4" />
                                     <span>Book a session</span>
@@ -1986,7 +1904,7 @@ onBeforeUnmount(() => {
                                 <button
                                     type="button"
                                     class="inline-flex min-h-11 items-center justify-center gap-2.5 rounded border border-white/30 bg-black/20 px-5 text-xs font-medium text-white transition hover:border-white/60 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]"
-                                    @click="enterDetailMode(true)"
+                                    @click="enterFilmPage(false, false, true)"
                                 >
                                     <span>More</span>
                                     <Play class="size-3 fill-current" />
@@ -2133,1161 +2051,1062 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
                 </section>
-
-                <!-- Quick Schedule Directory Below Hero -->
-                <section
-                    aria-labelledby="all-schedules-heading"
-                    class="border-t border-white/10 bg-[#121212]/95 py-14 backdrop-blur-sm sm:py-16"
-                >
-                    <div class="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-                        <div
-                            class="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5"
-                        >
-                            <div>
-                                <h2
-                                    id="all-schedules-heading"
-                                    class="font-display text-2xl font-bold tracking-tight text-white"
-                                >
-                                    Daftar Jadwal Tayang
-                                </h2>
-                                <p class="mt-1.5 text-sm text-[#9ca0aa]">
-                                    Pilih jam tayang untuk langsung masuk ke
-                                    pemilihan kursi auditorium.
-                                </p>
-                            </div>
-                            <p class="text-xs text-[#9ca0aa] tabular-nums">
-                                {{ filteredSchedules.length }} sesi tersedia
-                            </p>
-                        </div>
-
-                        <div class="mt-8 grid gap-5 md:grid-cols-2">
-                            <article
-                                v-for="movie in movieGroups"
-                                :key="`list-${movie.key}`"
-                                class="flex flex-col gap-4 rounded-2xl border border-white/10 bg-[#18191d] p-4 transition hover:border-white/25 sm:flex-row sm:p-5"
-                            >
-                                <img
-                                    v-if="movie.poster"
-                                    :src="movie.poster"
-                                    :alt="`Poster ${movie.title}`"
-                                    loading="lazy"
-                                    class="h-44 w-30 shrink-0 rounded-lg bg-[#202227] object-cover"
-                                />
-                                <div
-                                    v-else
-                                    class="flex h-44 w-30 shrink-0 items-center justify-center rounded-lg bg-[#202227]"
-                                >
-                                    <Clapperboard class="size-8 text-white/30" />
-                                </div>
-
-                                <div class="flex min-w-0 flex-1 flex-col">
-                                    <div
-                                        class="flex items-start justify-between gap-2"
-                                    >
-                                        <h3
-                                            class="font-display text-lg font-bold text-white"
-                                        >
-                                            {{ movie.title }}
-                                        </h3>
-                                        <span
-                                            v-if="movie.rating_age"
-                                            class="shrink-0 rounded border border-white/20 px-2 py-0.5 text-[11px] font-semibold text-white/85"
-                                        >
-                                            {{ movie.rating_age }}
-                                        </span>
-                                    </div>
-
-                                    <p class="mt-1.5 text-xs text-[#9ca0aa]">
-                                        <span v-if="movie.genre"
-                                            >{{ movie.genre }} ·
-                                        </span>
-                                        {{ movie.duration_minute }} menit
-                                    </p>
-
-                                    <div class="mt-4 flex flex-wrap gap-2">
-                                        <button
-                                            v-for="slot in movie.schedules"
-                                            :key="`quick-${slot.id_schedule}`"
-                                            type="button"
-                                            class="group/slot inline-flex flex-col rounded-lg border border-white/15 bg-[#121212] px-3 py-2 text-left transition hover:border-[#f5b82e] hover:bg-[#f5b82e]/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]"
-                                            @click="
-                                                enterBookingMode(
-                                                    slot.id_schedule,
-                                                    true,
-                                                )
-                                            "
-                                        >
-                                            <span
-                                                class="font-display text-sm font-bold text-white tabular-nums group-hover/slot:text-[#f5b82e]"
-                                            >
-                                                {{ slot.show_time.slice(0, 5) }}
-                                                WIB
-                                            </span>
-                                            <span
-                                                class="mt-0.5 text-[11px] text-[#9ca0aa]"
-                                            >
-                                                {{ slot.cinema.name }} ·
-                                                {{ slot.studio_name }}
-                                            </span>
-                                            <span
-                                                class="mt-0.5 text-[11px] font-medium text-[#f5b82e] tabular-nums"
-                                            >
-                                                {{ money(slot.price) }}
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                    </div>
-                </section>
             </div>
 
-            <!-- ========================================================= -->
-            <!-- MODE 2: MOVIE DETAIL (Same Canvas, Title FLIPped Top-Left) -->
-            <!-- ========================================================= -->
-            <section
-                v-else-if="mode === 'detail'"
-                ref="detailStageRef"
-                class="relative z-10 mx-auto flex min-h-[calc(100svh-5rem)] w-full max-w-[1400px] flex-col justify-between px-5 pt-4 pb-10 sm:px-8 lg:px-12 lg:pt-8 lg:pb-12"
-            >
-                <!-- Subtle back to schedule link -->
-                <div>
-                    <button
-                        type="button"
-                        class="inline-flex min-h-8 items-center gap-2 text-xs font-medium text-white/70 transition hover:text-[#f5b82e]"
-                        @click="enterScheduleMode(true)"
-                    >
-                        <ArrowLeft class="size-3.5" />
-                        <span>Kembali ke Daftar Tayang</span>
-                    </button>
-                </div>
-
-                <!-- 3-Column Astral Detail Composition -->
-                <div
-                    class="my-auto grid items-center gap-10 py-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.08fr)] lg:gap-12"
+            <!-- ========================================================================= -->
+            <!-- MODE 2 & 3 UNIFIED: SINGLE SCROLLABLE FLOW (Detail Top + Seat Selection) -->
+            <!-- ========================================================================= -->
+            <div v-else ref="filmStageRef" class="relative z-10">
+                <!-- TOP SECTION: Movie Details, Cast Portraits, Storyline & Trailer -->
+                <section
+                    class="mx-auto flex min-h-screen w-full max-w-[1400px] flex-col justify-center px-5 pt-28 pb-14 sm:px-8 lg:px-12"
                 >
-                    <!-- Left Column: Title + Specs (Cinema moved to Top Navbar) + Order Prompt -->
-                    <div class="max-w-lg">
-                        <h1
-                            ref="detailTitleRef"
-                            class="font-display text-3xl leading-[1.08] font-bold tracking-tight text-white will-change-transform sm:text-5xl"
-                        >
-                            {{ activeMovie.title }}
-                        </h1>
-
-                        <dl
-                            ref="detailSpecsRef"
-                            class="mt-7 grid grid-cols-[105px_1fr] gap-y-2.5 text-xs sm:text-[13px]"
-                        >
-                            <template v-if="activeShowcase.grade">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Grade:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="flex items-center gap-2 font-semibold text-white tabular-nums"
-                                >
-                                    <span
-                                        class="inline-flex items-center gap-0.5 text-[#f5b82e]"
-                                    >
-                                        <Star
-                                            v-for="s in 5"
-                                            :key="s"
-                                            class="size-3.5"
-                                            :class="
-                                                s <= filledStars
-                                                    ? 'fill-[#f5b82e] text-[#f5b82e]'
-                                                    : 'text-[#f5b82e]/35'
-                                            "
-                                        />
-                                    </span>
-                                    <span class="text-white/90">{{
-                                        activeShowcase.grade
-                                    }}</span>
-                                </dd>
-                            </template>
-
-                            <template v-if="activeMovie.rating_age">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Rating:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="font-medium text-white/95 uppercase"
-                                >
-                                    {{ activeMovie.rating_age }}
-                                </dd>
-                            </template>
-
-                            <dt data-spec-row class="font-medium text-white/60">
-                                Format:
-                            </dt>
-                            <dd
-                                data-spec-row
-                                class="font-medium text-white/95 lowercase"
-                            >
-                                {{ activeSchedule.studio_name }}
-                            </dd>
-
-                            <template v-if="activeMovie.genre">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Genre:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="font-medium text-white/95"
-                                >
-                                    {{ activeMovie.genre }}
-                                </dd>
-                            </template>
-
-                            <template v-if="activeShowcase.country">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Country:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="font-medium text-white/95"
-                                >
-                                    {{ activeShowcase.country }}
-                                </dd>
-                            </template>
-
-                            <dt data-spec-row class="font-medium text-white/60">
-                                Duration:
-                            </dt>
-                            <dd
-                                data-spec-row
-                                class="font-medium text-white/95 tabular-nums"
-                            >
-                                {{ activeMovie.duration_minute }} min.
-                            </dd>
-
-                            <template v-if="activeShowcase.language">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Tongue:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="font-medium text-white/95"
-                                >
-                                    {{ activeShowcase.language }}
-                                </dd>
-                            </template>
-
-                            <template v-if="activeShowcase.director">
-                                <dt
-                                    data-spec-row
-                                    class="font-medium text-white/60"
-                                >
-                                    Director:
-                                </dt>
-                                <dd
-                                    data-spec-row
-                                    class="font-medium text-white/95"
-                                >
-                                    {{ activeShowcase.director }}
-                                </dd>
-                            </template>
-                        </dl>
-
-                        <button
-                            ref="detailOrderBtnRef"
-                            type="button"
-                            class="group mt-10 inline-flex flex-col items-center gap-1.5 text-xs font-medium text-white/65 transition hover:text-[#f5b82e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f5b82e]"
-                            @click="
-                                enterBookingMode(
-                                    activeSchedule.id_schedule,
-                                    false,
-                                )
-                            "
-                        >
-                            <span>Order a ticket right now</span>
-                            <ChevronDown
-                                class="size-4 transition-transform duration-300 group-hover:translate-y-1"
-                            />
-                        </button>
-                    </div>
-
-                    <!-- Center Column: Play Trailer Button -->
-                    <div class="flex items-center justify-center">
-                        <button
-                            ref="detailPlayBtnRef"
-                            type="button"
-                            :aria-label="
-                                resolvedTrailerUrl
-                                    ? `Tonton trailer ${activeMovie.title}`
-                                    : 'Pesan tiket sekarang'
-                            "
-                            class="group relative flex size-16 items-center justify-center rounded-full bg-white text-[#121212] ring-[10px] ring-white/20 transition duration-300 hover:scale-105 hover:bg-[#f5b82e] hover:ring-[#f5b82e]/30 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f5b82e]"
-                            @click="
-                                resolvedTrailerUrl
-                                    ? openTrailerModal()
-                                    : enterBookingMode(
-                                          activeSchedule.id_schedule,
-                                          false,
-                                      )
-                            "
-                        >
-                            <Play class="size-5 translate-x-0.5 fill-current" />
-                        </button>
-                    </div>
-
-                    <!-- Right Column: Portrait Starring Cast Cards + Storyline -->
-                    <div class="min-w-0 space-y-7">
-                        <div v-if="castList.length > 0" ref="detailCastRef">
-                            <h2
-                                class="font-display text-sm font-semibold text-white/95"
-                            >
-                                Starring:
-                            </h2>
-
-                            <!-- Portrait Cast Cards (w-28 aspect-[3/4], object-cover object-top so faces/heads never crop) -->
-                            <div
-                                ref="castTrackRef"
-                                class="astral-no-scrollbar mt-3.5 flex gap-3.5 overflow-x-auto pb-1"
-                            >
-                                <article
-                                    v-for="(actor, idx) in castList"
-                                    :key="`${actor.name}-${idx}`"
-                                    :data-cast-idx="idx"
-                                    data-cast-card
-                                    class="group relative aspect-[3/4] w-28 shrink-0 overflow-hidden rounded-md bg-[#18191d] shadow-lg sm:w-32"
-                                >
-                                    <img
-                                        v-if="actor.photo"
-                                        :src="actor.photo"
-                                        :alt="actor.name"
-                                        loading="lazy"
-                                        class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-                                    />
-                                    <div
-                                        v-else
-                                        class="flex h-full w-full items-center justify-center bg-[#202227]"
-                                    >
-                                        <User class="size-7 text-white/25" />
-                                    </div>
-
-                                    <!-- Dark Bottom Gradient for crisp actor name legibility -->
-                                    <div
-                                        class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-2.5 pt-10"
-                                    >
-                                        <p
-                                            class="line-clamp-2 text-[11px] leading-tight font-semibold text-white"
-                                        >
-                                            {{ actor.name }}
-                                        </p>
-                                    </div>
-                                </article>
-                            </div>
-
-                            <!-- Cast (<) (>) Circular Buttons + Horizontal Progress Line -->
-                            <div
-                                v-if="castList.length > 3"
-                                class="mt-4 flex items-center gap-4"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        aria-label="Pemeran sebelumnya"
-                                        class="inline-flex size-8 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white/75 transition hover:border-white hover:text-white"
-                                        @click="slideCast(-1)"
-                                    >
-                                        <ChevronLeft class="size-3.5" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        aria-label="Pemeran berikutnya"
-                                        class="inline-flex size-8 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white/75 transition hover:border-white hover:text-white"
-                                        @click="slideCast(1)"
-                                    >
-                                        <ChevronRight class="size-3.5" />
-                                    </button>
-                                </div>
-
-                                <div
-                                    class="relative h-px flex-1 bg-white/20"
-                                    aria-hidden="true"
-                                >
-                                    <div
-                                        class="absolute inset-y-0 left-0 h-0.5 -translate-y-1/4 bg-white transition-all duration-300"
-                                        :style="{
-                                            width: `${castProgressPercent}%`,
-                                        }"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div ref="detailStoryRef">
-                            <h2
-                                class="font-display text-sm font-semibold text-white/95"
-                            >
-                                Storyline:
-                            </h2>
-                            <p
-                                class="mt-3 max-w-[54ch] text-xs leading-relaxed text-[#9ca0aa] sm:text-[13px]"
-                            >
-                                {{
-                                    resolvedSynopsis ??
-                                    `Saksikan penayangan ${activeMovie.title} di ${activeSchedule.cinema.name} (${activeSchedule.studio_name}). Klik Order a ticket right now untuk memilih jadwal dan kursi.`
-                                }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ========================================================= -->
-            <!-- MODE 3: 2-STAGE SEAT SELECTION (Same Persistent Canvas)   -->
-            <!-- ========================================================= -->
-            <main
-                v-else-if="mode === 'booking'"
-                ref="bookingStageRef"
-                class="relative z-10 mx-auto max-w-[1400px] px-5 pt-4 pb-16 sm:px-8 lg:px-12 lg:pt-8"
-            >
-                <!-- Compact Top Breadcrumb -->
-                <div class="mb-6 flex items-center justify-between gap-4">
-                    <button
-                        type="button"
-                        class="inline-flex min-h-8 items-center gap-2 text-xs font-medium text-white/70 transition hover:text-[#f5b82e]"
-                        @click="enterDetailMode(true)"
+                    <div
+                        class="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.08fr)] lg:gap-12"
                     >
-                        <ArrowLeft class="size-3.5" />
-                        <span>Detail Film · {{ activeMovie.title }}</span>
-                    </button>
-                </div>
+                        <!-- Left Column: Title + Metadata (Cinema is in Top Navbar) + Order Prompt -->
+                        <div class="max-w-lg">
+                            <h1
+                                ref="detailTitleRef"
+                                class="font-display text-3xl leading-[1.08] font-bold tracking-tight text-white will-change-transform sm:text-5xl"
+                            >
+                                {{ activeMovie.title }}
+                            </h1>
 
-                <div
-                    class="grid items-start gap-12 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-16"
-                >
-                    <!-- LEFT COLUMN: 2-Stage Date Collapse + Time Pills + Expandable Tickets Card -->
-                    <div class="space-y-6">
-                        <!-- 1. Collapsible Date Strip (Visible in Stage 1, collapses upward smoothly in Stage 2) -->
-                        <div
-                            class="grid transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                            :style="{
-                                gridTemplateRows: dateStripCollapsed
-                                    ? '0fr'
-                                    : '1fr',
-                                opacity: dateStripCollapsed ? 0 : 1,
-                                marginBottom: dateStripCollapsed
-                                    ? '-1.5rem'
-                                    : '0px',
-                            }"
-                        >
-                            <div class="overflow-hidden">
-                                <div class="pb-2">
-                                    <h2
-                                        class="font-display text-sm font-semibold text-white/95"
+                            <dl
+                                ref="detailSpecsRef"
+                                class="mt-7 grid grid-cols-[105px_1fr] gap-y-2.5 text-xs sm:text-[13px]"
+                            >
+                                <template v-if="activeShowcase.grade">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
                                     >
-                                        Date for {{ currentMonthName }}:
-                                    </h2>
-
-                                    <div class="mt-4 grid grid-cols-5 gap-2">
-                                        <button
-                                            v-for="d in bookingDateStrip"
-                                            :key="d.iso"
-                                            type="button"
-                                            :disabled="!d.hasSchedule"
-                                            :aria-pressed="
-                                                d.iso === currentShowDateIso
-                                            "
-                                            :class="[
-                                                'flex flex-col items-center justify-center rounded border py-2.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]',
-                                                d.iso === currentShowDateIso
-                                                    ? 'border-[#f5b82e] bg-[#f5b82e]/10 text-white shadow-[0_0_18px_rgba(245,184,46,0.2)]'
-                                                    : d.hasSchedule
-                                                      ? 'border-white/15 bg-white/[0.02] text-white/85 hover:border-white/40 hover:text-white'
-                                                      : 'cursor-not-allowed border-transparent text-white/25',
-                                            ]"
-                                            @click="
-                                                pickBookingDate(
-                                                    d.firstScheduleId,
-                                                )
-                                            "
+                                        Grade:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="flex items-center gap-2 font-semibold text-white tabular-nums"
+                                    >
+                                        <span
+                                            class="inline-flex items-center gap-0.5 text-[#f5b82e]"
                                         >
-                                            <span
-                                                class="font-display text-3xl leading-none font-bold tabular-nums sm:text-[2.15rem]"
-                                            >
-                                                {{ d.dayNum }}
-                                            </span>
-                                            <span
-                                                class="mt-1.5 text-[10px] font-semibold tracking-widest uppercase"
+                                            <Star
+                                                v-for="s in 5"
+                                                :key="s"
+                                                class="size-3.5"
                                                 :class="
-                                                    d.iso === currentShowDateIso
-                                                        ? 'text-[#f5b82e]'
-                                                        : 'text-[#9ca0aa]'
+                                                    s <= filledStars
+                                                        ? 'fill-[#f5b82e] text-[#f5b82e]'
+                                                        : 'text-[#f5b82e]/35'
                                                 "
-                                            >
-                                                {{ d.weekday }}
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                                            />
+                                        </span>
+                                        <span class="text-white/90">{{
+                                            activeShowcase.grade
+                                        }}</span>
+                                    </dd>
+                                </template>
+
+                                <template v-if="activeMovie.rating_age">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
+                                    >
+                                        Rating:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="font-medium text-white/95 uppercase"
+                                    >
+                                        {{ activeMovie.rating_age }}
+                                    </dd>
+                                </template>
+
+                                <dt
+                                    data-spec-row
+                                    class="font-medium text-white/60"
+                                >
+                                    Format:
+                                </dt>
+                                <dd
+                                    data-spec-row
+                                    class="font-medium text-white/95 lowercase"
+                                >
+                                    {{ activeSchedule.studio_name }}
+                                </dd>
+
+                                <template v-if="activeMovie.genre">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
+                                    >
+                                        Genre:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="font-medium text-white/95"
+                                    >
+                                        {{ activeMovie.genre }}
+                                    </dd>
+                                </template>
+
+                                <template v-if="activeShowcase.country">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
+                                    >
+                                        Country:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="font-medium text-white/95"
+                                    >
+                                        {{ activeShowcase.country }}
+                                    </dd>
+                                </template>
+
+                                <dt
+                                    data-spec-row
+                                    class="font-medium text-white/60"
+                                >
+                                    Duration:
+                                </dt>
+                                <dd
+                                    data-spec-row
+                                    class="font-medium text-white/95 tabular-nums"
+                                >
+                                    {{ activeMovie.duration_minute }} min.
+                                </dd>
+
+                                <template v-if="activeShowcase.language">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
+                                    >
+                                        Tongue:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="font-medium text-white/95"
+                                    >
+                                        {{ activeShowcase.language }}
+                                    </dd>
+                                </template>
+
+                                <template v-if="activeShowcase.director">
+                                    <dt
+                                        data-spec-row
+                                        class="font-medium text-white/60"
+                                    >
+                                        Director:
+                                    </dt>
+                                    <dd
+                                        data-spec-row
+                                        class="font-medium text-white/95"
+                                    >
+                                        {{ activeShowcase.director }}
+                                    </dd>
+                                </template>
+                            </dl>
+
+                            <button
+                                ref="detailOrderBtnRef"
+                                type="button"
+                                class="group mt-10 inline-flex flex-col items-center gap-1.5 text-xs font-medium text-white/70 transition hover:text-[#f5b82e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f5b82e]"
+                                @click="scrollToBookingSection(false)"
+                            >
+                                <span>Order a ticket right now</span>
+                                <ChevronDown
+                                    class="size-4 transition-transform duration-300 group-hover:translate-y-1"
+                                />
+                            </button>
                         </div>
 
-                        <!-- 2. Time Selector Row (Rises to top-left in Stage 2; Active pill turns solid #F5B82E) -->
-                        <div>
-                            <div class="flex items-center justify-between gap-2">
+                        <!-- Center Column: Play Trailer Button -->
+                        <div class="flex items-center justify-center">
+                            <button
+                                ref="detailPlayBtnRef"
+                                type="button"
+                                :aria-label="
+                                    resolvedTrailerUrl
+                                        ? `Tonton trailer ${activeMovie.title}`
+                                        : 'Pilih kursi sekarang'
+                                "
+                                class="group relative flex size-16 items-center justify-center rounded-full bg-white text-[#121212] ring-[10px] ring-white/20 transition duration-300 hover:scale-105 hover:bg-[#f5b82e] hover:ring-[#f5b82e]/30 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f5b82e]"
+                                @click="
+                                    resolvedTrailerUrl
+                                        ? openTrailerModal()
+                                        : scrollToBookingSection(false)
+                                "
+                            >
+                                <Play
+                                    class="size-5 translate-x-0.5 fill-current"
+                                />
+                            </button>
+                        </div>
+
+                        <!-- Right Column: Portrait Starring Cast Cards + Storyline -->
+                        <div class="min-w-0 space-y-7">
+                            <div v-if="castList.length > 0" ref="detailCastRef">
                                 <h2
                                     class="font-display text-sm font-semibold text-white/95"
                                 >
-                                    Time:
+                                    Starring:
                                 </h2>
-                                <button
-                                    v-if="hasPickedTime"
-                                    type="button"
-                                    class="inline-flex items-center gap-1 text-[11px] font-medium text-[#f5b82e] transition hover:underline"
-                                    @click="reopenDateStrip"
+
+                                <div
+                                    ref="castTrackRef"
+                                    class="astral-no-scrollbar mt-3.5 flex gap-3.5 overflow-x-auto pb-1"
                                 >
-                                    <Calendar class="size-3" />
-                                    <span>{{
-                                        dateStripCollapsed
-                                            ? `Ganti tanggal (${formattedDotDate})`
-                                            : 'Tutup tanggal'
-                                    }}</span>
-                                </button>
+                                    <article
+                                        v-for="(actor, idx) in castList"
+                                        :key="`${actor.name}-${idx}`"
+                                        :data-cast-idx="idx"
+                                        data-cast-card
+                                        class="group relative aspect-[3/4] w-28 shrink-0 overflow-hidden rounded-md bg-[#18191d] shadow-lg sm:w-32"
+                                    >
+                                        <img
+                                            v-if="actor.photo"
+                                            :src="actor.photo"
+                                            :alt="actor.name"
+                                            loading="lazy"
+                                            class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                                        />
+                                        <div
+                                            v-else
+                                            class="flex h-full w-full items-center justify-center bg-[#202227]"
+                                        >
+                                            <User
+                                                class="size-7 text-white/25"
+                                            />
+                                        </div>
+
+                                        <div
+                                            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-2.5 pt-10"
+                                        >
+                                            <p
+                                                class="line-clamp-2 text-[11px] leading-tight font-semibold text-white"
+                                            >
+                                                {{ actor.name }}
+                                            </p>
+                                        </div>
+                                    </article>
+                                </div>
+
+                                <div
+                                    v-if="castList.length > 3"
+                                    class="mt-4 flex items-center gap-4"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            aria-label="Pemeran sebelumnya"
+                                            class="inline-flex size-8 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white/75 transition hover:border-white hover:text-white"
+                                            @click="slideCast(-1)"
+                                        >
+                                            <ChevronLeft class="size-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-label="Pemeran berikutnya"
+                                            class="inline-flex size-8 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white/75 transition hover:border-white hover:text-white"
+                                            @click="slideCast(1)"
+                                        >
+                                            <ChevronRight class="size-3.5" />
+                                        </button>
+                                    </div>
+
+                                    <div
+                                        class="relative h-px flex-1 bg-white/20"
+                                        aria-hidden="true"
+                                    >
+                                        <div
+                                            class="absolute inset-y-0 left-0 h-0.5 -translate-y-1/4 bg-white transition-all duration-300"
+                                            :style="{
+                                                width: `${castProgressPercent}%`,
+                                            }"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="mt-3.5 flex flex-wrap gap-2.5">
-                                <button
-                                    v-for="slot in timeSlotsForBookingDate"
-                                    :key="slot.id_schedule"
-                                    type="button"
-                                    :aria-pressed="
-                                        hasPickedTime &&
-                                        slot.id_schedule ===
-                                            activeSchedule.id_schedule
-                                    "
-                                    :class="[
-                                        'inline-flex min-h-9 items-center justify-center rounded-full border px-4 py-1 text-xs tabular-nums transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]',
-                                        hasPickedTime &&
-                                        slot.id_schedule ===
-                                            activeSchedule.id_schedule
-                                            ? 'border-[#f5b82e] bg-[#f5b82e] font-bold text-[#121212] shadow-[0_0_20px_rgba(245,184,46,0.38)]'
-                                            : 'border-white/25 bg-white/[0.03] font-semibold text-white/80 hover:border-[#f5b82e]/70 hover:text-white',
-                                    ]"
-                                    @click="pickTimeSlot(slot)"
+                            <div ref="detailStoryRef">
+                                <h2
+                                    class="font-display text-sm font-semibold text-white/95"
                                 >
-                                    {{ slot.show_time.slice(0, 5) }}
-                                </button>
+                                    Storyline:
+                                </h2>
+                                <p
+                                    class="mt-3 max-w-[54ch] text-xs leading-relaxed text-[#9ca0aa] sm:text-[13px]"
+                                >
+                                    {{
+                                        resolvedSynopsis ??
+                                        `Saksikan penayangan ${activeMovie.title} di ${activeSchedule.cinema.name} (${activeSchedule.studio_name}). Gulir ke bawah untuk memilih jadwal dan kursi.`
+                                    }}
+                                </p>
                             </div>
                         </div>
+                    </div>
+                </section>
 
-                        <!-- 3. Tickets Card (Collapsed in Stage 1 -> Smoothly Expands in Stage 2) -->
-                        <div>
-                            <h2
-                                class="font-display text-sm font-semibold text-white/95"
+                <!-- BOTTOM SECTION: 2-Stage Ticket & Seat Selection (Scrollable below Detail) -->
+                <main
+                    id="booking-section"
+                    ref="bookingSectionRef"
+                    class="mx-auto min-h-[90svh] max-w-[1400px] scroll-mt-24 border-t border-white/10 px-5 pt-10 pb-20 sm:px-8 lg:px-12 lg:pt-14"
+                >
+                    <div
+                        class="grid items-start gap-12 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-16"
+                    >
+                        <!-- LEFT COLUMN: 2-Stage Date Collapse + Time Pills + Expandable Tickets Card -->
+                        <div class="space-y-6">
+                            <!-- 1. Collapsible Date Strip -->
+                            <div
+                                class="grid transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                                :style="{
+                                    gridTemplateRows: dateStripCollapsed
+                                        ? '0fr'
+                                        : '1fr',
+                                    opacity: dateStripCollapsed ? 0 : 1,
+                                    marginBottom: dateStripCollapsed
+                                        ? '-1.5rem'
+                                        : '0px',
+                                }"
                             >
-                                Tickets:
-                            </h2>
+                                <div class="overflow-hidden">
+                                    <div class="pb-2">
+                                        <h2
+                                            class="font-display text-sm font-semibold text-white/95"
+                                        >
+                                            Date for {{ currentMonthName }}:
+                                        </h2>
 
-                            <aside
-                                ref="ticketCardRef"
-                                aria-label="Ringkasan tiket terpilih"
-                                class="mt-3.5 rounded-md border border-white/10 bg-[#1b1c20] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.65)] transition-all duration-500 sm:p-6"
-                            >
-                                <div
-                                    class="flex items-start justify-between gap-3"
-                                >
-                                    <h3
-                                        class="font-display text-xl font-bold text-white"
-                                    >
-                                        {{ activeMovie.title }}
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        :aria-label="
-                                            ticketCardExpanded
-                                                ? 'Sembunyikan rincian kursi'
-                                                : 'Tampilkan rincian kursi'
-                                        "
-                                        class="rounded p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
-                                        @click="
-                                            ticketCardExpanded =
-                                                !ticketCardExpanded
-                                        "
-                                    >
-                                        <ChevronUp
-                                            v-if="ticketCardExpanded"
-                                            class="size-4"
-                                        />
-                                        <ChevronDown v-else class="size-4" />
-                                    </button>
-                                </div>
-
-                                <div
-                                    class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#9ca0aa] tabular-nums"
-                                >
-                                    <span
-                                        class="inline-flex items-center gap-1.5"
-                                    >
-                                        <Clock3
-                                            class="size-3.5 text-white/60"
-                                        />
-                                        {{
-                                            hasPickedTime
-                                                ? activeSchedule.show_time.slice(
-                                                      0,
-                                                      5,
-                                                  )
-                                                : '--:--'
-                                        }}
-                                    </span>
-                                    <span
-                                        class="inline-flex items-center gap-1.5"
-                                    >
-                                        <Calendar
-                                            class="size-3.5 text-white/60"
-                                        />
-                                        {{ formattedDotDate }}
-                                    </span>
-                                    <span
-                                        class="inline-flex items-center gap-1.5"
-                                    >
-                                        <MapPin
-                                            class="size-3.5 text-white/60"
-                                        />
-                                        {{ activeSchedule.cinema.name }}, "{{
-                                            activeSchedule.studio_name
-                                        }}"
-                                    </span>
-                                </div>
-
-                                <!-- Smoothly Animated Expandable Ticket Body -->
-                                <div
-                                    class="grid transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                                    :style="{
-                                        gridTemplateRows: ticketCardExpanded
-                                            ? '1fr'
-                                            : '0fr',
-                                        opacity: ticketCardExpanded ? 1 : 0,
-                                    }"
-                                >
-                                    <div class="overflow-hidden">
-                                        <div class="mt-5">
-                                            <!-- Clear Informative Table Header -->
-                                            <div
-                                                class="grid grid-cols-[0.9fr_1.1fr_0.9fr_0.8fr_1.3fr] items-center rounded bg-[#121212] px-3 py-2 text-[10px] font-semibold tracking-wider text-[#9ca0aa] uppercase"
-                                            >
-                                                <span>KURSI</span>
-                                                <span>STUDIO</span>
-                                                <span>BARIS</span>
-                                                <span>NOMOR</span>
-                                                <span class="text-right"
-                                                    >HARGA</span
-                                                >
-                                            </div>
-
-                                            <!-- Placeholder: Choose a place -> -->
-                                            <div
-                                                v-if="
-                                                    selectedSeatCells.length ===
-                                                    0
+                                        <div class="mt-4 grid grid-cols-5 gap-2">
+                                            <button
+                                                v-for="d in bookingDateStrip"
+                                                :key="d.iso"
+                                                type="button"
+                                                :disabled="!d.hasSchedule"
+                                                :aria-pressed="
+                                                    d.iso === currentShowDateIso
                                                 "
-                                                class="flex min-h-36 flex-col items-center justify-center py-8 text-center"
+                                                :class="[
+                                                    'flex flex-col items-center justify-center rounded border py-2.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]',
+                                                    d.iso === currentShowDateIso
+                                                        ? 'border-[#f5b82e] bg-[#f5b82e]/10 text-white shadow-[0_0_18px_rgba(245,184,46,0.2)]'
+                                                        : d.hasSchedule
+                                                          ? 'border-white/15 bg-white/[0.02] text-white/85 hover:border-white/40 hover:text-white'
+                                                          : 'cursor-not-allowed border-transparent text-white/25',
+                                                ]"
+                                                @click="
+                                                    pickBookingDate(
+                                                        d.firstScheduleId,
+                                                    )
+                                                "
                                             >
-                                                <p
-                                                    class="inline-flex items-center gap-2 font-display text-lg font-medium text-white/30"
+                                                <span
+                                                    class="font-display text-3xl leading-none font-bold tabular-nums sm:text-[2.15rem]"
                                                 >
-                                                    <span>Choose a place</span>
-                                                    <ArrowRight
-                                                        class="size-4"
-                                                    />
-                                                </p>
-                                                <p
-                                                    class="mt-1.5 text-xs text-[#9ca0aa]"
-                                                >
-                                                    Klik kursi pada denah di
-                                                    kanan (maks.
-                                                    {{ maxSeats }} kursi)
-                                                </p>
-                                            </div>
-
-                                            <!-- Real-Time Populated Seat Rows -->
-                                            <div
-                                                v-else
-                                                class="mt-1 divide-y divide-white/8"
-                                            >
-                                                <div
-                                                    v-for="cell in selectedSeatCells"
-                                                    :key="cell.seatNumber"
-                                                    :data-seat-row="
-                                                        cell.seatNumber
-                                                    "
-                                                    class="group grid grid-cols-[0.9fr_1.1fr_0.9fr_0.8fr_1.3fr] items-center px-3 py-3 text-xs tabular-nums transition hover:bg-white/[0.03]"
-                                                >
-                                                    <span>
-                                                        <span
-                                                            class="inline-flex items-center justify-center rounded bg-[#f5b82e]/15 px-2 py-0.5 font-display text-xs font-bold text-[#f5b82e]"
-                                                        >
-                                                            {{ cell.seatCode }}
-                                                        </span>
-                                                    </span>
-                                                    <span
-                                                        class="truncate text-white/85"
-                                                    >
-                                                        {{
-                                                            activeSchedule.studio_name
-                                                        }}
-                                                    </span>
-                                                    <span
-                                                        class="font-medium text-white/90"
-                                                    >
-                                                        Baris
-                                                        {{ cell.rowLetter }}
-                                                    </span>
-                                                    <span class="text-white/85">
-                                                        No.
-                                                        {{ cell.colNumber }}
-                                                    </span>
-                                                    <span
-                                                        class="flex items-center justify-end gap-1.5 font-bold text-white"
-                                                    >
-                                                        <span>{{
-                                                            money(
-                                                                activeSchedule.price,
-                                                            )
-                                                        }}</span>
-                                                        <button
-                                                            type="button"
-                                                            :aria-label="`Batal pilih kursi ${cell.seatCode}`"
-                                                            class="rounded p-0.5 text-white/40 opacity-75 transition hover:bg-white/10 hover:text-[#f5b82e] group-hover:opacity-100"
-                                                            @click="
-                                                                toggleSeat(
-                                                                    cell.seatNumber,
-                                                                )
-                                                            "
-                                                        >
-                                                            <X class="size-3" />
-                                                        </button>
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <!-- Validation Errors -->
-                                            <p
-                                                v-if="form.errors.seats"
-                                                role="alert"
-                                                class="mt-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
-                                            >
-                                                {{ form.errors.seats }}
-                                            </p>
-                                            <p
-                                                v-if="form.errors['seats.0']"
-                                                role="alert"
-                                                class="mt-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
-                                            >
-                                                {{ form.errors['seats.0'] }}
-                                            </p>
-
-                                            <!-- Bottom CTA Row: [To pay] + Total Price -->
-                                            <div
-                                                class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5"
-                                            >
-                                                <button
-                                                    type="button"
-                                                    :disabled="
-                                                        form.seats.length ===
-                                                            0 ||
-                                                        form.processing
-                                                    "
-                                                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-[#f5b82e] px-6 text-xs font-bold tracking-wide text-[#121212] shadow-[0_8px_24px_rgba(245,184,46,0.28)] transition hover:bg-[#ffc542] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                                                    @click="holdSeats"
-                                                >
-                                                    <Ticket class="size-4" />
-                                                    <span>{{
-                                                        form.processing
-                                                            ? 'Memproses...'
-                                                            : 'To pay'
-                                                    }}</span>
-                                                </button>
-
-                                                <div class="text-right">
-                                                    <span
-                                                        class="text-xs font-medium text-white/80"
-                                                        >Total:
-                                                    </span>
-                                                    <span
-                                                        class="font-display text-base font-bold text-[#f5b82e] tabular-nums"
-                                                    >
-                                                        {{
-                                                            money(animatedPrice)
-                                                        }}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <p
-                                                class="mt-4 flex items-center gap-1.5 text-[11px] text-[#9ca0aa]"
-                                            >
-                                                <Info
-                                                    class="size-3.5 shrink-0 text-[#f5b82e]"
-                                                />
-                                                <span>
-                                                    Kursi ditahan
-                                                    {{ holdMinutes }} menit
-                                                    setelah dikunci untuk
-                                                    pembayaran Midtrans.
+                                                    {{ d.dayNum }}
                                                 </span>
-                                            </p>
+                                                <span
+                                                    class="mt-1.5 text-[10px] font-semibold tracking-widest uppercase"
+                                                    :class="
+                                                        d.iso ===
+                                                        currentShowDateIso
+                                                            ? 'text-[#f5b82e]'
+                                                            : 'text-[#9ca0aa]'
+                                                    "
+                                                >
+                                                    {{ d.weekday }}
+                                                </span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
-                            </aside>
-                        </div>
-                    </div>
+                            </div>
 
-                    <!-- RIGHT COLUMN: Luminous Curved Screen + 2-Stage Seat Map (Dimmed Preview -> Active) -->
-                    <section
-                        aria-labelledby="auditorium-heading"
-                        class="relative flex flex-col items-center pt-2"
-                    >
-                        <h2 id="auditorium-heading" class="sr-only">
-                            Denah Tempat Duduk Auditorium
-                        </h2>
-
-                        <!-- Wide Curved Cinema Screen with Perspective Light Curtain -->
-                        <div
-                            ref="screenArcRef"
-                            :class="[
-                                'relative w-full max-w-[740px] transition-opacity duration-500 select-none',
-                                hasPickedTime ? 'opacity-100' : 'opacity-45',
-                            ]"
-                        >
-                            <svg
-                                viewBox="0 0 800 135"
-                                fill="none"
-                                class="w-full overflow-visible"
-                                aria-hidden="true"
-                            >
-                                <defs>
-                                    <linearGradient
-                                        id="astral-screen-curtain"
-                                        x1="400"
-                                        y1="14"
-                                        x2="400"
-                                        y2="132"
-                                        gradientUnits="userSpaceOnUse"
-                                    >
-                                        <stop
-                                            offset="0%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0.22"
-                                        />
-                                        <stop
-                                            offset="42%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0.07"
-                                        />
-                                        <stop
-                                            offset="100%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0"
-                                        />
-                                    </linearGradient>
-
-                                    <radialGradient
-                                        id="astral-screen-bloom"
-                                        cx="50%"
-                                        cy="18%"
-                                        r="52%"
-                                    >
-                                        <stop
-                                            offset="0%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0.24"
-                                        />
-                                        <stop
-                                            offset="65%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0.04"
-                                        />
-                                        <stop
-                                            offset="100%"
-                                            stop-color="#FFFFFF"
-                                            stop-opacity="0"
-                                        />
-                                    </radialGradient>
-
-                                    <filter
-                                        id="astral-curtain-blur"
-                                        x="-10%"
-                                        y="-20%"
-                                        width="120%"
-                                        height="140%"
-                                    >
-                                        <feGaussianBlur stdDeviation="7" />
-                                    </filter>
-
-                                    <filter
-                                        id="astral-arc-glow"
-                                        x="-10%"
-                                        y="-50%"
-                                        width="120%"
-                                        height="200%"
-                                    >
-                                        <feGaussianBlur
-                                            stdDeviation="8"
-                                            result="blur1"
-                                        />
-                                        <feMerge>
-                                            <feMergeNode in="blur1" />
-                                            <feMergeNode in="SourceGraphic" />
-                                        </feMerge>
-                                    </filter>
-                                </defs>
-
-                                <path
-                                    d="M 38 48 Q 400 -2 762 48 L 796 130 Q 400 92 4 130 Z"
-                                    fill="url(#astral-screen-curtain)"
-                                    filter="url(#astral-curtain-blur)"
-                                />
-                                <ellipse
-                                    cx="400"
-                                    cy="58"
-                                    rx="350"
-                                    ry="52"
-                                    fill="url(#astral-screen-bloom)"
-                                />
-                                <path
-                                    d="M 34 48 Q 400 -12 766 48 Q 400 8 34 48 Z"
-                                    fill="#FFFFFF"
-                                    filter="url(#astral-arc-glow)"
-                                />
-                            </svg>
-
-                            <p
-                                class="-mt-16 text-center font-display text-xs font-medium tracking-wider text-white/85"
-                            >
-                                Screen
-                            </p>
-                        </div>
-
-                        <!-- Stage 1 Prompt Overlay when time has not been selected yet -->
-                        <div
-                            v-if="!hasPickedTime"
-                            class="mt-6 rounded-full border border-[#f5b82e]/40 bg-[#18191d]/90 px-4 py-1.5 text-xs font-medium text-[#f5b82e] shadow-lg"
-                        >
-                            Pilih jam tayang di sebelah kiri untuk memilih kursi
-                        </div>
-                        <div
-                            v-else-if="loadingSeats"
-                            class="mt-6 text-xs text-[#9ca0aa]"
-                        >
-                            Memperbarui ketersediaan kursi...
-                        </div>
-
-                        <!-- Tiered Theater Armchair Matrix (Dimmed Preview in Stage 1 -> Active in Stage 2) -->
-                        <div
-                            ref="seatGridRef"
-                            :class="[
-                                'astral-no-scrollbar w-full overflow-x-auto pt-8 pb-4 transition-all duration-500',
-                                hasPickedTime
-                                    ? 'pointer-events-auto mt-4 opacity-100'
-                                    : 'pointer-events-none mt-2 opacity-30 select-none',
-                            ]"
-                        >
-                            <div
-                                class="mx-auto flex min-w-fit flex-col items-center gap-3 px-4"
-                            >
+                            <!-- 2. Time Selector Row -->
+                            <div>
                                 <div
-                                    v-for="row in seatRows"
-                                    :key="row.rowLetter"
-                                    data-seat-row-el
-                                    class="flex items-center justify-center gap-2 sm:gap-2.5"
+                                    class="flex items-center justify-between gap-2"
                                 >
-                                    <span
-                                        aria-hidden="true"
-                                        class="w-5 text-right font-display text-[11px] font-semibold text-white/30 select-none"
+                                    <h2
+                                        class="font-display text-sm font-semibold text-white/95"
                                     >
-                                        {{ row.rowLetter }}
-                                    </span>
-
+                                        Time:
+                                    </h2>
                                     <button
-                                        v-for="cell in row.seats"
-                                        :key="cell.seatNumber"
+                                        v-if="hasPickedTime"
                                         type="button"
-                                        :disabled="
-                                            !hasPickedTime ||
-                                            currentOccupiedSet.has(
-                                                cell.seatNumber,
-                                            ) ||
-                                            (form.seats.length >= maxSeats &&
-                                                !form.seats.includes(
-                                                    cell.seatNumber,
-                                                )) ||
-                                            form.processing
-                                        "
-                                        :aria-label="`Kursi ${cell.seatNumber} (Baris ${cell.rowLetter} Nomor ${cell.colNumber}): ${currentOccupiedSet.has(cell.seatNumber) ? 'tidak tersedia' : form.seats.includes(cell.seatNumber) ? 'dipilih' : 'tersedia'}`"
+                                        class="inline-flex items-center gap-1 text-[11px] font-medium text-[#f5b82e] transition hover:underline"
+                                        @click="reopenDateStrip"
+                                    >
+                                        <Calendar class="size-3" />
+                                        <span>{{
+                                            dateStripCollapsed
+                                                ? `Ganti tanggal (${formattedDotDate})`
+                                                : 'Tutup tanggal'
+                                        }}</span>
+                                    </button>
+                                </div>
+
+                                <div class="mt-3.5 flex flex-wrap gap-2.5">
+                                    <button
+                                        v-for="slot in timeSlotsForBookingDate"
+                                        :key="slot.id_schedule"
+                                        type="button"
                                         :aria-pressed="
-                                            form.seats.includes(cell.seatNumber)
+                                            hasPickedTime &&
+                                            slot.id_schedule ===
+                                                activeSchedule.id_schedule
                                         "
                                         :class="[
-                                            'group/seat relative flex size-8 items-center justify-center rounded transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e] sm:size-9',
-                                            currentOccupiedSet.has(
-                                                cell.seatNumber,
-                                            )
-                                                ? 'cursor-not-allowed text-[#2f3138]'
-                                                : form.seats.includes(
-                                                        cell.seatNumber,
-                                                    )
-                                                  ? 'text-[#f5b82e] drop-shadow-[0_0_10px_rgba(245,184,46,0.55)]'
-                                                  : 'text-[#787b84] hover:text-white disabled:cursor-not-allowed disabled:opacity-45',
+                                            'inline-flex min-h-9 items-center justify-center rounded-full border px-4 py-1 text-xs tabular-nums transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e]',
+                                            hasPickedTime &&
+                                            slot.id_schedule ===
+                                                activeSchedule.id_schedule
+                                                ? 'border-[#f5b82e] bg-[#f5b82e] font-bold text-[#121212] shadow-[0_0_20px_rgba(245,184,46,0.38)]'
+                                                : 'border-white/25 bg-white/[0.03] font-semibold text-white/80 hover:border-[#f5b82e]/70 hover:text-white',
                                         ]"
-                                        @mouseenter="
-                                            hoveredSeatNumber = cell.seatNumber
-                                        "
-                                        @mouseleave="hoveredSeatNumber = null"
-                                        @focus="
-                                            hoveredSeatNumber = cell.seatNumber
-                                        "
-                                        @blur="hoveredSeatNumber = null"
-                                        @click="
-                                            toggleSeat(cell.seatNumber, $event)
-                                        "
+                                        @click="pickTimeSlot(slot)"
                                     >
-                                        <!-- Local Floating Micro-Tooltip Directly Above Chair -->
+                                        {{ slot.show_time.slice(0, 5) }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 3. Tickets Card -->
+                            <div>
+                                <h2
+                                    class="font-display text-sm font-semibold text-white/95"
+                                >
+                                    Tickets:
+                                </h2>
+
+                                <aside
+                                    ref="ticketCardRef"
+                                    aria-label="Ringkasan tiket terpilih"
+                                    class="mt-3.5 rounded-md border border-white/10 bg-[#1b1c20] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.65)] transition-all duration-500 sm:p-6"
+                                >
+                                    <div
+                                        class="flex items-start justify-between gap-3"
+                                    >
+                                        <h3
+                                            class="font-display text-xl font-bold text-white"
+                                        >
+                                            {{ activeMovie.title }}
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            :aria-label="
+                                                ticketCardExpanded
+                                                    ? 'Sembunyikan rincian kursi'
+                                                    : 'Tampilkan rincian kursi'
+                                            "
+                                            class="rounded p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
+                                            @click="
+                                                ticketCardExpanded =
+                                                    !ticketCardExpanded
+                                            "
+                                        >
+                                            <ChevronUp
+                                                v-if="ticketCardExpanded"
+                                                class="size-4"
+                                            />
+                                            <ChevronDown
+                                                v-else
+                                                class="size-4"
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div
+                                        class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#9ca0aa] tabular-nums"
+                                    >
                                         <span
-                                            v-if="
-                                                hasPickedTime &&
-                                                hoveredSeatNumber ===
-                                                    cell.seatNumber &&
-                                                !currentOccupiedSet.has(
+                                            class="inline-flex items-center gap-1.5"
+                                        >
+                                            <Clock3
+                                                class="size-3.5 text-white/60"
+                                            />
+                                            {{
+                                                hasPickedTime
+                                                    ? activeSchedule.show_time.slice(
+                                                          0,
+                                                          5,
+                                                      )
+                                                    : '--:--'
+                                            }}
+                                        </span>
+                                        <span
+                                            class="inline-flex items-center gap-1.5"
+                                        >
+                                            <Calendar
+                                                class="size-3.5 text-white/60"
+                                            />
+                                            {{ formattedDotDate }}
+                                        </span>
+                                        <span
+                                            class="inline-flex items-center gap-1.5"
+                                        >
+                                            <MapPin
+                                                class="size-3.5 text-white/60"
+                                            />
+                                            {{ activeSchedule.cinema.name }}, "{{
+                                                activeSchedule.studio_name
+                                            }}"
+                                        </span>
+                                    </div>
+
+                                    <!-- Expandable Body -->
+                                    <div
+                                        class="grid transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                                        :style="{
+                                            gridTemplateRows: ticketCardExpanded
+                                                ? '1fr'
+                                                : '0fr',
+                                            opacity: ticketCardExpanded ? 1 : 0,
+                                        }"
+                                    >
+                                        <div class="overflow-hidden">
+                                            <div class="mt-5">
+                                                <div
+                                                    class="grid grid-cols-[0.9fr_1.1fr_0.9fr_0.8fr_1.3fr] items-center rounded bg-[#121212] px-3 py-2 text-[10px] font-semibold tracking-wider text-[#9ca0aa] uppercase"
+                                                >
+                                                    <span>KURSI</span>
+                                                    <span>STUDIO</span>
+                                                    <span>BARIS</span>
+                                                    <span>NOMOR</span>
+                                                    <span class="text-right"
+                                                        >HARGA</span
+                                                    >
+                                                </div>
+
+                                                <div
+                                                    v-if="
+                                                        selectedSeatCells.length ===
+                                                        0
+                                                    "
+                                                    class="flex min-h-36 flex-col items-center justify-center py-8 text-center"
+                                                >
+                                                    <p
+                                                        class="inline-flex items-center gap-2 font-display text-lg font-medium text-white/30"
+                                                    >
+                                                        <span
+                                                            >Choose a
+                                                            place</span
+                                                        >
+                                                        <ArrowRight
+                                                            class="size-4"
+                                                        />
+                                                    </p>
+                                                    <p
+                                                        class="mt-1.5 text-xs text-[#9ca0aa]"
+                                                    >
+                                                        Klik kursi pada denah
+                                                        (maks.
+                                                        {{ maxSeats }} kursi)
+                                                    </p>
+                                                </div>
+
+                                                <div
+                                                    v-else
+                                                    class="mt-1 divide-y divide-white/8"
+                                                >
+                                                    <div
+                                                        v-for="cell in selectedSeatCells"
+                                                        :key="cell.seatNumber"
+                                                        :data-seat-row="
+                                                            cell.seatNumber
+                                                        "
+                                                        class="group grid grid-cols-[0.9fr_1.1fr_0.9fr_0.8fr_1.3fr] items-center px-3 py-3 text-xs tabular-nums transition hover:bg-white/[0.03]"
+                                                    >
+                                                        <span>
+                                                            <span
+                                                                class="inline-flex items-center justify-center rounded bg-[#f5b82e]/15 px-2 py-0.5 font-display text-xs font-bold text-[#f5b82e]"
+                                                            >
+                                                                {{
+                                                                    cell.seatCode
+                                                                }}
+                                                            </span>
+                                                        </span>
+                                                        <span
+                                                            class="truncate text-white/85"
+                                                        >
+                                                            {{
+                                                                activeSchedule.studio_name
+                                                            }}
+                                                        </span>
+                                                        <span
+                                                            class="font-medium text-white/90"
+                                                        >
+                                                            Baris
+                                                            {{ cell.rowLetter }}
+                                                        </span>
+                                                        <span
+                                                            class="text-white/85"
+                                                        >
+                                                            No.
+                                                            {{ cell.colNumber }}
+                                                        </span>
+                                                        <span
+                                                            class="flex items-center justify-end gap-1.5 font-bold text-white"
+                                                        >
+                                                            <span>{{
+                                                                money(
+                                                                    activeSchedule.price,
+                                                                )
+                                                            }}</span>
+                                                            <button
+                                                                type="button"
+                                                                :aria-label="`Batal pilih kursi ${cell.seatCode}`"
+                                                                class="rounded p-0.5 text-white/40 opacity-75 transition hover:bg-white/10 hover:text-[#f5b82e] group-hover:opacity-100"
+                                                                @click="
+                                                                    toggleSeat(
+                                                                        cell.seatNumber,
+                                                                    )
+                                                                "
+                                                            >
+                                                                <X
+                                                                    class="size-3"
+                                                                />
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <p
+                                                    v-if="form.errors.seats"
+                                                    role="alert"
+                                                    class="mt-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+                                                >
+                                                    {{ form.errors.seats }}
+                                                </p>
+                                                <p
+                                                    v-if="form.errors['seats.0']"
+                                                    role="alert"
+                                                    class="mt-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+                                                >
+                                                    {{ form.errors['seats.0'] }}
+                                                </p>
+
+                                                <div
+                                                    class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        :disabled="
+                                                            form.seats
+                                                                .length === 0 ||
+                                                            form.processing
+                                                        "
+                                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-[#f5b82e] px-6 text-xs font-bold tracking-wide text-[#121212] shadow-[0_8px_24px_rgba(245,184,46,0.28)] transition hover:bg-[#ffc542] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                                                        @click="holdSeats"
+                                                    >
+                                                        <Ticket
+                                                            class="size-4"
+                                                        />
+                                                        <span>{{
+                                                            form.processing
+                                                                ? 'Memproses...'
+                                                                : 'To pay'
+                                                        }}</span>
+                                                    </button>
+
+                                                    <div class="text-right">
+                                                        <span
+                                                            class="text-xs font-medium text-white/80"
+                                                            >Total:
+                                                        </span>
+                                                        <span
+                                                            class="font-display text-base font-bold text-[#f5b82e] tabular-nums"
+                                                        >
+                                                            {{
+                                                                money(
+                                                                    animatedPrice,
+                                                                )
+                                                            }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <p
+                                                    class="mt-4 flex items-center gap-1.5 text-[11px] text-[#9ca0aa]"
+                                                >
+                                                    <Info
+                                                        class="size-3.5 shrink-0 text-[#f5b82e]"
+                                                    />
+                                                    <span>
+                                                        Kursi ditahan
+                                                        {{ holdMinutes }} menit
+                                                        setelah dikunci untuk
+                                                        pembayaran Midtrans.
+                                                    </span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </aside>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: Luminous Curved Screen + 2-Stage Seat Map -->
+                        <section
+                            aria-labelledby="auditorium-heading"
+                            class="relative flex flex-col items-center pt-2"
+                        >
+                            <h2 id="auditorium-heading" class="sr-only">
+                                Denah Tempat Duduk Auditorium
+                            </h2>
+
+                            <div
+                                ref="screenArcRef"
+                                :class="[
+                                    'relative w-full max-w-[740px] transition-opacity duration-500 select-none',
+                                    hasPickedTime
+                                        ? 'opacity-100'
+                                        : 'opacity-45',
+                                ]"
+                            >
+                                <svg
+                                    viewBox="0 0 800 135"
+                                    fill="none"
+                                    class="w-full overflow-visible"
+                                    aria-hidden="true"
+                                >
+                                    <defs>
+                                        <linearGradient
+                                            id="astral-screen-curtain"
+                                            x1="400"
+                                            y1="14"
+                                            x2="400"
+                                            y2="132"
+                                            gradientUnits="userSpaceOnUse"
+                                        >
+                                            <stop
+                                                offset="0%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0.22"
+                                            />
+                                            <stop
+                                                offset="42%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0.07"
+                                            />
+                                            <stop
+                                                offset="100%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0"
+                                            />
+                                        </linearGradient>
+
+                                        <radialGradient
+                                            id="astral-screen-bloom"
+                                            cx="50%"
+                                            cy="18%"
+                                            r="52%"
+                                        >
+                                            <stop
+                                                offset="0%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0.24"
+                                            />
+                                            <stop
+                                                offset="65%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0.04"
+                                            />
+                                            <stop
+                                                offset="100%"
+                                                stop-color="#FFFFFF"
+                                                stop-opacity="0"
+                                            />
+                                        </radialGradient>
+
+                                        <filter
+                                            id="astral-curtain-blur"
+                                            x="-10%"
+                                            y="-20%"
+                                            width="120%"
+                                            height="140%"
+                                        >
+                                            <feGaussianBlur stdDeviation="7" />
+                                        </filter>
+
+                                        <filter
+                                            id="astral-arc-glow"
+                                            x="-10%"
+                                            y="-50%"
+                                            width="120%"
+                                            height="200%"
+                                        >
+                                            <feGaussianBlur
+                                                stdDeviation="8"
+                                                result="blur1"
+                                            />
+                                            <feMerge>
+                                                <feMergeNode in="blur1" />
+                                                <feMergeNode
+                                                    in="SourceGraphic"
+                                                />
+                                            </feMerge>
+                                        </filter>
+                                    </defs>
+
+                                    <path
+                                        d="M 38 48 Q 400 -2 762 48 L 796 130 Q 400 92 4 130 Z"
+                                        fill="url(#astral-screen-curtain)"
+                                        filter="url(#astral-curtain-blur)"
+                                    />
+                                    <ellipse
+                                        cx="400"
+                                        cy="58"
+                                        rx="350"
+                                        ry="52"
+                                        fill="url(#astral-screen-bloom)"
+                                    />
+                                    <path
+                                        d="M 34 48 Q 400 -12 766 48 Q 400 8 34 48 Z"
+                                        fill="#FFFFFF"
+                                        filter="url(#astral-arc-glow)"
+                                    />
+                                </svg>
+
+                                <p
+                                    class="-mt-16 text-center font-display text-xs font-medium tracking-wider text-white/85"
+                                >
+                                    Screen
+                                </p>
+                            </div>
+
+                            <!-- Responsive Instruction Badge (mobile/tablet vs desktop) -->
+                            <div
+                                v-if="!hasPickedTime"
+                                class="mt-6 rounded-full border border-[#f5b82e]/40 bg-[#18191d]/90 px-4 py-1.5 text-center text-xs font-medium text-[#f5b82e] shadow-lg"
+                            >
+                                <span class="lg:hidden"
+                                    >Pilih jam tayang di atas untuk memilih
+                                    kursi</span
+                                >
+                                <span class="hidden lg:inline"
+                                    >Pilih jam tayang di sebelah kiri untuk
+                                    memilih kursi</span
+                                >
+                            </div>
+                            <div
+                                v-else-if="loadingSeats"
+                                class="mt-6 text-xs text-[#9ca0aa]"
+                            >
+                                Memperbarui ketersediaan kursi...
+                            </div>
+
+                            <!-- Tiered Theater Armchair Matrix -->
+                            <div
+                                ref="seatGridRef"
+                                :class="[
+                                    'astral-no-scrollbar w-full overflow-x-auto pt-8 pb-4 transition-all duration-500',
+                                    hasPickedTime
+                                        ? 'pointer-events-auto mt-4 opacity-100'
+                                        : 'pointer-events-none mt-2 opacity-30 select-none',
+                                ]"
+                            >
+                                <div
+                                    class="mx-auto flex min-w-fit flex-col items-center gap-3 px-4"
+                                >
+                                    <div
+                                        v-for="row in seatRows"
+                                        :key="row.rowLetter"
+                                        data-seat-row-el
+                                        class="flex items-center justify-center gap-2 sm:gap-2.5"
+                                    >
+                                        <span
+                                            aria-hidden="true"
+                                            class="w-5 text-right font-display text-[11px] font-semibold text-white/30 select-none"
+                                        >
+                                            {{ row.rowLetter }}
+                                        </span>
+
+                                        <button
+                                            v-for="cell in row.seats"
+                                            :key="cell.seatNumber"
+                                            type="button"
+                                            :disabled="
+                                                !hasPickedTime ||
+                                                currentOccupiedSet.has(
+                                                    cell.seatNumber,
+                                                ) ||
+                                                (form.seats.length >=
+                                                    maxSeats &&
+                                                    !form.seats.includes(
+                                                        cell.seatNumber,
+                                                    )) ||
+                                                form.processing
+                                            "
+                                            :aria-label="`Kursi ${cell.seatNumber} (Baris ${cell.rowLetter} Nomor ${cell.colNumber}): ${currentOccupiedSet.has(cell.seatNumber) ? 'tidak tersedia' : form.seats.includes(cell.seatNumber) ? 'dipilih' : 'tersedia'}`"
+                                            :aria-pressed="
+                                                form.seats.includes(
                                                     cell.seatNumber,
                                                 )
                                             "
-                                            aria-hidden="true"
-                                            class="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 rounded border border-white/20 bg-[#121212] px-2 py-0.5 font-display text-[10px] font-bold whitespace-nowrap text-white shadow-lg"
+                                            :class="[
+                                                'group/seat relative flex size-8 items-center justify-center rounded transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f5b82e] sm:size-9',
+                                                currentOccupiedSet.has(
+                                                    cell.seatNumber,
+                                                )
+                                                    ? 'cursor-not-allowed text-[#2f3138]'
+                                                    : form.seats.includes(
+                                                            cell.seatNumber,
+                                                        )
+                                                      ? 'text-[#f5b82e] drop-shadow-[0_0_10px_rgba(245,184,46,0.55)]'
+                                                      : 'text-[#787b84] hover:text-white disabled:cursor-not-allowed disabled:opacity-45',
+                                            ]"
+                                            @mouseenter="
+                                                hoveredSeatNumber =
+                                                    cell.seatNumber
+                                            "
+                                            @mouseleave="
+                                                hoveredSeatNumber = null
+                                            "
+                                            @focus="
+                                                hoveredSeatNumber =
+                                                    cell.seatNumber
+                                            "
+                                            @blur="hoveredSeatNumber = null"
+                                            @click="
+                                                toggleSeat(
+                                                    cell.seatNumber,
+                                                    $event,
+                                                )
+                                            "
                                         >
-                                            {{ cell.seatCode }}
+                                            <span
+                                                v-if="
+                                                    hasPickedTime &&
+                                                    hoveredSeatNumber ===
+                                                        cell.seatNumber &&
+                                                    !currentOccupiedSet.has(
+                                                        cell.seatNumber,
+                                                    )
+                                                "
+                                                aria-hidden="true"
+                                                class="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 rounded border border-white/20 bg-[#121212] px-2 py-0.5 font-display text-[10px] font-bold whitespace-nowrap text-white shadow-lg"
+                                            >
+                                                {{ cell.seatCode }}
+                                            </span>
+
+                                            <svg
+                                                viewBox="0 0 28 26"
+                                                fill="currentColor"
+                                                class="size-full"
+                                                aria-hidden="true"
+                                            >
+                                                <rect
+                                                    x="6"
+                                                    y="2"
+                                                    width="16"
+                                                    height="15"
+                                                    rx="2.5"
+                                                />
+                                                <path
+                                                    d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
+                                                />
+                                            </svg>
+                                            <span class="sr-only">{{
+                                                cell.seatNumber
+                                            }}</span>
+                                        </button>
+
+                                        <span
+                                            aria-hidden="true"
+                                            class="w-5 text-left font-display text-[11px] font-semibold text-white/30 select-none"
+                                        >
+                                            {{ row.rowLetter }}
                                         </span>
-
-                                        <svg
-                                            viewBox="0 0 28 26"
-                                            fill="currentColor"
-                                            class="size-full"
-                                            aria-hidden="true"
-                                        >
-                                            <rect
-                                                x="6"
-                                                y="2"
-                                                width="16"
-                                                height="15"
-                                                rx="2.5"
-                                            />
-                                            <path
-                                                d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
-                                            />
-                                        </svg>
-                                        <span class="sr-only">{{
-                                            cell.seatNumber
-                                        }}</span>
-                                    </button>
-
-                                    <span
-                                        aria-hidden="true"
-                                        class="w-5 text-left font-display text-[11px] font-semibold text-white/30 select-none"
-                                    >
-                                        {{ row.rowLetter }}
-                                    </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Bottom Armchair Legend -->
-                        <div
-                            :class="[
-                                'mt-8 flex flex-wrap items-center justify-center gap-7 border-t border-white/10 pt-6 text-xs font-semibold tracking-wider uppercase transition-opacity duration-500',
-                                hasPickedTime ? 'opacity-100' : 'opacity-45',
-                            ]"
-                        >
-                            <div class="inline-flex items-center gap-2.5">
-                                <svg
-                                    viewBox="0 0 28 26"
-                                    fill="currentColor"
-                                    class="size-6 text-white"
-                                    aria-hidden="true"
-                                >
-                                    <rect
-                                        x="6"
-                                        y="2"
-                                        width="16"
-                                        height="15"
-                                        rx="2.5"
-                                    />
-                                    <path
-                                        d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
-                                    />
-                                </svg>
-                                <span class="text-white/90 tabular-nums">
-                                    REGULAR - {{ money(activeSchedule.price) }}
-                                </span>
-                            </div>
+                            <!-- Bottom Armchair Legend (Responsive flex-wrap for mobile) -->
+                            <div
+                                :class="[
+                                    'mt-8 flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-white/10 pt-6 text-xs font-semibold tracking-wider uppercase transition-opacity duration-500 sm:gap-x-7',
+                                    hasPickedTime
+                                        ? 'opacity-100'
+                                        : 'opacity-45',
+                                ]"
+                            >
+                                <div class="inline-flex items-center gap-2">
+                                    <svg
+                                        viewBox="0 0 28 26"
+                                        fill="currentColor"
+                                        class="size-5 text-white sm:size-6"
+                                        aria-hidden="true"
+                                    >
+                                        <rect
+                                            x="6"
+                                            y="2"
+                                            width="16"
+                                            height="15"
+                                            rx="2.5"
+                                        />
+                                        <path
+                                            d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
+                                        />
+                                    </svg>
+                                    <span class="text-white/90 tabular-nums">
+                                        REGULER -
+                                        {{ money(activeSchedule.price) }}
+                                    </span>
+                                </div>
 
-                            <div class="inline-flex items-center gap-2.5">
-                                <svg
-                                    viewBox="0 0 28 26"
-                                    fill="currentColor"
-                                    class="size-6 text-[#f5b82e]"
-                                    aria-hidden="true"
-                                >
-                                    <rect
-                                        x="6"
-                                        y="2"
-                                        width="16"
-                                        height="15"
-                                        rx="2.5"
-                                    />
-                                    <path
-                                        d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
-                                    />
-                                </svg>
-                                <span class="text-[#f5b82e]">DIPILIH</span>
-                            </div>
+                                <div class="inline-flex items-center gap-2">
+                                    <svg
+                                        viewBox="0 0 28 26"
+                                        fill="currentColor"
+                                        class="size-5 text-[#f5b82e] sm:size-6"
+                                        aria-hidden="true"
+                                    >
+                                        <rect
+                                            x="6"
+                                            y="2"
+                                            width="16"
+                                            height="15"
+                                            rx="2.5"
+                                        />
+                                        <path
+                                            d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
+                                        />
+                                    </svg>
+                                    <span class="text-[#f5b82e]">DIPILIH</span>
+                                </div>
 
-                            <div class="inline-flex items-center gap-2.5">
-                                <svg
-                                    viewBox="0 0 28 26"
-                                    fill="currentColor"
-                                    class="size-6 text-[#2f3138]"
-                                    aria-hidden="true"
-                                >
-                                    <rect
-                                        x="6"
-                                        y="2"
-                                        width="16"
-                                        height="15"
-                                        rx="2.5"
-                                    />
-                                    <path
-                                        d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
-                                    />
-                                </svg>
-                                <span class="text-[#9ca0aa]">TERISI</span>
+                                <div class="inline-flex items-center gap-2">
+                                    <svg
+                                        viewBox="0 0 28 26"
+                                        fill="currentColor"
+                                        class="size-5 text-[#2f3138] sm:size-6"
+                                        aria-hidden="true"
+                                    >
+                                        <rect
+                                            x="6"
+                                            y="2"
+                                            width="16"
+                                            height="15"
+                                            rx="2.5"
+                                        />
+                                        <path
+                                            d="M2 5.5C2 4.12 3.12 3 4.5 3C5.33 3 6 3.67 6 4.5V16.5C6 17.6 6.9 18.5 8 18.5H20C21.1 18.5 22 17.6 22 16.5V4.5C22 3.67 22.67 3 23.5 3C24.88 3 26 4.12 26 5.5V18.5C26 21.26 23.76 23.5 21 23.5H7C4.24 23.5 2 21.26 2 18.5V5.5Z"
+                                        />
+                                    </svg>
+                                    <span class="text-[#9ca0aa]">TERISI</span>
+                                </div>
                             </div>
-                        </div>
-                    </section>
-                </div>
-            </main>
+                        </section>
+                    </div>
+                </main>
+            </div>
         </template>
 
         <!-- Inline Trailer Video Overlay Modal -->

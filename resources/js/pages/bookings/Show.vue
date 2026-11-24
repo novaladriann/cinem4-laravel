@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Clock3, Ticket } from '@lucide/vue';
 import { computed } from 'vue';
+import CinemaNav from '@/components/CinemaNav.vue';
 
 type Booking = {
     id_booking: number;
@@ -65,8 +66,9 @@ function cancelBooking(): void {
 
 <template>
     <Head :title="`Reservasi #${booking.id_booking} | CINEM4`" />
-    <div class="min-h-screen bg-[#0c1018] text-slate-100">
-        <main class="mx-auto max-w-2xl px-5 py-10">
+    <div class="astral-theme min-h-screen bg-[#121212] text-white">
+        <CinemaNav :transparent="false" />
+        <main class="mx-auto max-w-2xl px-5 pt-28 pb-12">
             <Link
                 href="/my-bookings"
                 class="inline-flex min-h-11 items-center gap-2 text-sm text-slate-300 hover:text-white"
