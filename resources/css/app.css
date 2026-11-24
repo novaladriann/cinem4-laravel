@@ -9,9 +9,18 @@
 
 @theme inline {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Manrope', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+    --font-display:
+        'Sora', 'Manrope', ui-sans-serif, system-ui, sans-serif;
+
+    --color-astral-bg: #121212;
+    --color-astral-surface: #18191d;
+    --color-astral-elevated: #202227;
+    --color-astral-amber: #f5b82e;
+    --color-astral-amber-hover: #ffc542;
+    --color-astral-muted: #9ca0aa;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -140,4 +149,49 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+/* Astral Cinema theme utilities & browser surface polish */
+.astral-theme {
+    background-color: #121212;
+    color: #ffffff;
+    caret-color: #f5b82e;
+    color-scheme: dark;
+}
+
+.astral-theme ::selection {
+    background-color: #f5b82e;
+    color: #121212;
+}
+
+.astral-theme ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.astral-theme ::-webkit-scrollbar-track {
+    background: #121212;
+}
+
+.astral-theme ::-webkit-scrollbar-thumb {
+    background: #2b2d34;
+    border-radius: 9999px;
+}
+
+.astral-theme ::-webkit-scrollbar-thumb:hover {
+    background: #f5b82e;
+}
+
+.astral-outline-num {
+    -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.72);
+    color: transparent;
+}
+
+.astral-no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.astral-no-scrollbar::-webkit-scrollbar {
+    display: none;
 }

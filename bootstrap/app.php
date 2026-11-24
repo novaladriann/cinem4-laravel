@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
         $middleware->validateCsrfTokens(except: ['webhooks/midtrans']);
+        // shortcut: percaya semua proxy hanya saat local (tunnel HTTPS), atur IP proxy eksplisit sebelum produksi.
+        if (env('APP_ENV') === 'local') {
+            $middleware->trustProxies(at: '*');
+        }
 
         $middleware->web(append: [
             HandleAppearance::class,

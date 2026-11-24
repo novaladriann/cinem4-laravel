@@ -15,6 +15,12 @@ export default defineConfig({
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
                 }),
+                bunny('Sora', {
+                    weights: [200, 300, 400, 600, 700, 800],
+                }),
+                bunny('Manrope', {
+                    weights: [400, 500, 600, 700],
+                }),
             ],
         }),
         inertia(),

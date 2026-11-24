@@ -17,6 +17,7 @@ Route::inertia('/', 'Welcome')->name('home');
 Route::get('/movies', MovieCatalogController::class)->name('movies.index');
 Route::get('/showtimes', [ShowtimeController::class, 'index'])->name('showtimes.index');
 Route::get('/showtimes/{schedule}', [ShowtimeController::class, 'show'])->name('showtimes.show');
+Route::get('/showtimes/{schedule}/seats', [ShowtimeController::class, 'seats'])->name('showtimes.seats');
 
 // Midtrans callback uses signed request plus server-side status lookup, not browser sessions.
 Route::post('/webhooks/midtrans', [MidtransPaymentController::class, 'webhook'])
