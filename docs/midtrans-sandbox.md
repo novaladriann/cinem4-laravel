@@ -22,9 +22,10 @@ Alamat `127.0.0.1` atau `localhost` **tidak dapat dijangkau langsung oleh server
 
 - Saat kursi pertama kali dipilih, reservasi ditahan 10 menit. Saat pembayaran dimulai, server memperpanjang menjadi 20 menit dan Midtrans diberi jendela bayar 15 menit.
 - Setelah order Midtrans dibuat, kursi **tidak dilepas otomatis hanya berdasarkan timer lokal**; transaksi harus disinkronkan dengan Midtrans untuk menghindari penjualan ganda jika webhook terlambat.
-- `order_id` disimpan sebelum permintaan Snap, sehingga percobaan ulang tidak membuat ID transaksi baru.
+- `order_id` disimpan sebelum permintaan Snap, sehingga percobaan ulang tidak membuat ID transaksi baru. Setelah timeout, tombol **Coba pulihkan checkout Sandbox** memanggil Snap kembali memakai ID yang sama jika jendela 15 menit masih berlaku. Midtrans dapat membuat URL baru selama pelanggan belum memilih metode pembayaran; jika order sudah digunakan, sistem tidak mengganti ID secara otomatis.
+- Get Status dapat mengembalikan `404` meskipun halaman checkout telah dibuat, sebelum pelanggan memilih metode. Ini diperlakukan sebagai status yang belum diketahui, **bukan izin melepas kursi**.
 - Pembayaran terkonfirmasi dengan kursi masih terkunci -> `paid`. Pesan berulang tidak membuat tiket ganda.
-- Status Midtrans `expire`/`cancel`/`deny`/`failure` -> lepaskan kursi dan catat status booking.
+- Status Midtrans `expire`/`cancel`/`failure` -> lepaskan kursi dan catat status booking. **`deny` pada satu upaya Snap tidak otomatis mengakhiri order**; kursi tetap ditahan agar metode lain dapat berhasil. Bila `deny` terjadi setelah paid, tiket ditahan untuk pemeriksaan reversal.
 - Hasil positif yang terlambat atau tidak konsisten -> `payment_reviews`, **jangan otomatis terbitkan tiket**.
 - Sesi Midtrans aktif **tidak dapat dibatalkan pelanggan**, dan jadwal tidak boleh dibatalkan admin sebelum status pembayaran terselesaikan.
 
